@@ -109,13 +109,13 @@ export const reportRouter = createTRPCRouter({
       z.object({
         id: z.string().cuid(),
         status: reportStatusSchema,
-        reviewerNotes: z.string().trim().optional(),
+        reviewerNotes: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const data = {
         status: input.status,
-        ...(input.reviewerNotes !== undefined && { reviewerNotes: input.reviewerNotes || null }),
+        reviewerNotes: input.reviewerNotes !== undefined ? (input.reviewerNotes?.trim() || null) : undefined,
         ...(input.status !== "SUBMITTED" && {
           reviewedAt: new Date(),
           reviewedById: ctx.session.user.id,

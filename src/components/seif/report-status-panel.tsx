@@ -43,7 +43,7 @@ export function ReportStatusPanel({
     updateStatus.mutate({
       id: reportId,
       status,
-      reviewerNotes: reviewerNotes.trim() || undefined,
+      reviewerNotes: reviewerNotes.trim() ? reviewerNotes.trim() : "",
     });
   };
 

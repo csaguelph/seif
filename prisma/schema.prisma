@@ -26,9 +26,10 @@ model User {
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
-  applications  SeifApplication[] @relation("ApplicationSubmitter")
+  applications      SeifApplication[] @relation("ApplicationSubmitter")
   reviewedApplications SeifApplication[] @relation("ApplicationReviewer")
-  reviewedReports     SeifReport[]       @relation("ReportReviewer")
+  submittedReports  SeifReport[]       @relation("ReportSubmitter")
+  reviewedReports   SeifReport[]       @relation("ReportReviewer")
 }
 
 model Session {
@@ -138,6 +139,7 @@ model SeifReport {
   finalBudgetFilePath   String
   receiptsFilePaths     Json            // array of uploaded receipt URLs
   submittedById         String?
+  submittedBy           User?           @relation("ReportSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
   submittedAt           DateTime        @default(now())
   reviewedAt            DateTime?
   reviewedById          String?

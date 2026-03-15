@@ -26,7 +26,7 @@ export default async function AdminReportsPage() {
       <nav className="mt-4 flex gap-4">
         <Link
           href="/admin"
-          className="font-medium text-gray-600 hover:text-indigo-600 hover:text-indigo-900"
+          className="font-medium text-gray-600 hover:text-indigo-900"
         >
           Applications
         </Link>

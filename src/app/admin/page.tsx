@@ -30,7 +30,7 @@ export default async function AdminPage() {
         </Link>
         <Link
           href="/admin/reports"
-          className="font-medium text-gray-600 hover:text-indigo-600 hover:text-indigo-900"
+          className="font-medium text-gray-600 hover:text-indigo-900"
         >
           Reports
         </Link>

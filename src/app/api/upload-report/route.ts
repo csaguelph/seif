@@ -1,10 +1,12 @@
 import type { NextRequest } from "next/server";
 
+import { getSession } from "~/server/better-auth/server";
 import { uploadReportFile } from "~/server/r2";
 
-// Receipts only: 5 MB per file
 const RECEIPT_MAX_SIZE = 5 * 1024 * 1024;
+const BUDGET_MAX_SIZE = 10 * 1024 * 1024;
 const RECEIPT_EXT = [".xlsx", ".xls", ".pdf", ".png", ".jpg", ".jpeg"] as const;
+const BUDGET_EXT = [".xlsx", ".xls"] as const;
 const CONTENT_TYPES: Record<string, string> = {
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".xls": "application/vnd.ms-excel",
@@ -15,7 +17,16 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session?.user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+    const isBudget = type === "budget";
+
     const formData = await req.formData();
     const file = formData.get("file");
 
@@ -26,19 +37,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (file.size > RECEIPT_MAX_SIZE) {
+    if (file.size > (isBudget ? BUDGET_MAX_SIZE : RECEIPT_MAX_SIZE)) {
       return Response.json(
-        { error: "File too large (max 5 MB per receipt)" },
+        { error: isBudget ? "File too large (max 10 MB)" : "File too large (max 5 MB per receipt)" },
         { status: 400 }
       );
     }
 
     const ext = "." + (file.name.split(".").pop() ?? "").toLowerCase();
-    if (!RECEIPT_EXT.includes(ext as (typeof RECEIPT_EXT)[number])) {
-      return Response.json(
-        { error: "Allowed: Excel (.xlsx, .xls), PDF, or images (.png, .jpg, .jpeg)" },
-        { status: 400 }
-      );
+    if (isBudget) {
+      if (!BUDGET_EXT.includes(ext as (typeof BUDGET_EXT)[number])) {
+        return Response.json({ error: "Excel only (.xlsx, .xls)" }, { status: 400 });
+      }
+    } else {
+      if (!RECEIPT_EXT.includes(ext as (typeof RECEIPT_EXT)[number])) {
+        return Response.json(
+          { error: "Allowed: Excel (.xlsx, .xls), PDF, or images (.png, .jpg, .jpeg)" },
+          { status: 400 }
+        );
+      }
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

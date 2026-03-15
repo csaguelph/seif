@@ -332,7 +332,7 @@ export function ReportBudgetUpload({
       setError("Upload failed");
       setStatus("failed");
     });
-    xhr.open("POST", "/api/upload");
+    xhr.open("POST", "/api/upload-report?type=budget");
     xhr.send(formData);
   };
 

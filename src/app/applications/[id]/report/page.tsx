@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { TRPCError } from "@trpc/server";
 import Link from "next/link";
 import { createCaller } from "~/server/api/root";
@@ -32,7 +32,7 @@ export default async function ReportApplicationPage({
     notFound();
   }
   if (application.report) {
-    notFound(); // Already submitted; show detail page instead
+    redirect(`/applications/${application.id}/report/view`);
   }
 
   const amountAllocated =
