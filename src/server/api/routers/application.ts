@@ -3,6 +3,14 @@ import { z } from "zod";
 import { createTRPCRouter, adminProcedure, publicProcedure } from "~/server/api/trpc";
 
 const formDataSchema = z.record(z.unknown());
+const optionalTrimmedString = z
+  .string()
+  .trim()
+  .transform((value) => (value.length > 0 ? value : null))
+  .nullable()
+  .optional();
+
+const normalizeNullableString = (value: string | null | undefined) => value ?? null;
 
 export const applicationRouter = createTRPCRouter({
   listOrganizations: publicProcedure.query(async ({ ctx }) => {
@@ -50,6 +58,47 @@ export const applicationRouter = createTRPCRouter({
         include: {
           organization: true,
           submittedBy: true,
+        },
+      });
+    }),
+
+  approve: adminProcedure
+    .input(
+      z.object({
+        id: z.string().cuid(),
+        comments: optionalTrimmedString,
+        conditions: optionalTrimmedString,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.seifApplication.update({
+        where: { id: input.id },
+        data: {
+          status: "APPROVED",
+          reviewerComments: normalizeNullableString(input.comments),
+          approvalConditions: normalizeNullableString(input.conditions),
+          denialReason: null,
+          reviewedAt: new Date(),
+        },
+      });
+    }),
+
+  reject: adminProcedure
+    .input(
+      z.object({
+        id: z.string().cuid(),
+        reason: z.string().trim().min(1, "A denial reason is required."),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.seifApplication.update({
+        where: { id: input.id },
+        data: {
+          status: "REJECTED",
+          denialReason: input.reason,
+          reviewerComments: null,
+          approvalConditions: null,
+          reviewedAt: new Date(),
         },
       });
     }),

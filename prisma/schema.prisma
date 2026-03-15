@@ -102,4 +102,9 @@ model SeifApplication {
   formData        Json
   // Budget file path (from uploads)
   budgetFilePath  String?
+  // Admin review metadata
+  reviewedAt         DateTime?
+  reviewerComments   String?
+  approvalConditions String?
+  denialReason       String?
 }
