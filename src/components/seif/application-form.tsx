@@ -326,6 +326,7 @@ function PhoneNumberField({
   const inputRef = useRef<HTMLInputElement>(null);
   const nextSelectionRef = useRef<number | null>(null);
   const { detectedCountry, callingCode, isValid } = getPhoneInputState(value);
+  const showCodeInBadge = !value.trimStart().startsWith("+");
 
   useEffect(() => {
     const input = inputRef.current;
@@ -378,7 +379,7 @@ function PhoneNumberField({
           <span aria-hidden className="text-lg leading-none">
             {getFlagEmoji(detectedCountry)}
           </span>
-          <span className="font-medium">{callingCode}</span>
+          {showCodeInBadge && <span className="font-medium">{callingCode}</span>}
         </div>
         <input
           ref={inputRef}
@@ -484,7 +485,7 @@ export function ApplicationForm() {
       setSubmitError("Please enter a valid amount requested.");
       return;
     }
-    if (typeof formData.phone !== "string" || formData.phone.length === 0) {
+    if (!getPhoneInputState(formData.phone).isValid) {
       setSubmitError("Please enter a valid phone number.");
       return;
     }
