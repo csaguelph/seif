@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { createTRPCRouter, adminProcedure, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, adminProcedure, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 
 const formDataSchema = z.record(z.unknown());
 const optionalTrimmedString = z
@@ -52,6 +52,37 @@ export const applicationRouter = createTRPCRouter({
       },
     });
   }),
+
+  /** List applications submitted by the current user (for dashboard). */
+  listMyApplications: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.seifApplication.findMany({
+      where: { submittedById: ctx.session.user.id },
+      orderBy: { submittedAt: "desc" },
+      include: {
+        organization: true,
+      },
+    });
+  }),
+
+  /** Get one application by id; only allowed if the current user submitted it. */
+  getMyApplicationById: protectedProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const app = await ctx.db.seifApplication.findUnique({
+        where: {
+          id: input.id,
+          submittedById: ctx.session.user.id,
+        },
+        include: {
+          organization: true,
+          reviewedBy: true,
+        },
+      });
+      if (!app) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Application not found." });
+      }
+      return app;
+    }),
 
   getById: adminProcedure
     .input(z.object({ id: z.string().cuid() }))

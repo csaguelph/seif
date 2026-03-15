@@ -7,12 +7,15 @@ import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import { ApplicationStatusBadge } from "./application-status-badge";
 
-export function ApplicationsTable() {
-  const { data: applications, isLoading, error } = api.application.list.useQuery();
+type App = RouterOutputs["application"]["listMyApplications"][number];
+
+export function UserApplicationsTable() {
+  const { data: applications, isLoading, error } =
+    api.application.listMyApplications.useQuery();
 
   if (isLoading) {
     return (
-      <div className="mt-6 text-gray-500">Loading applications…</div>
+      <div className="mt-6 text-gray-500">Loading your applications…</div>
     );
   }
   if (error) {
@@ -23,7 +26,10 @@ export function ApplicationsTable() {
   if (!applications?.length) {
     return (
       <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600">
-        No applications yet.
+        You haven’t submitted any applications yet.{" "}
+        <Link href="/apply" className="font-medium text-indigo-600 hover:text-indigo-900">
+          Start an application
+        </Link>
       </div>
     );
   }
@@ -43,9 +49,6 @@ export function ApplicationsTable() {
               Title
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Applicant
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
               Amount
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -57,7 +60,7 @@ export function ApplicationsTable() {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 bg-white">
-          {applications.map((app: RouterOutputs["application"]["list"][number]) => (
+          {applications.map((app: App) => (
             <tr key={app.id} className="hover:bg-gray-50">
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
                 {formatTorontoDate(app.submittedAt)}
@@ -68,9 +71,6 @@ export function ApplicationsTable() {
               <td className="px-4 py-3 text-sm text-gray-900">
                 {getApplicationTitle(app.formData)}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
-                {(app.formData as { fullName?: string })?.fullName ?? app.submittedBy?.name ?? "—"}
-              </td>
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
                 ${Number(app.amountRequested).toFixed(2)}
               </td>
@@ -79,10 +79,10 @@ export function ApplicationsTable() {
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
                 <Link
-                  href={`/admin/applications/${app.id}`}
+                  href={`/dashboard/applications/${app.id}`}
                   className="font-medium text-indigo-600 hover:text-indigo-900"
                 >
-                  View
+                  View details
                 </Link>
               </td>
             </tr>
