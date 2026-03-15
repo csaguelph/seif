@@ -6,6 +6,7 @@ import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
 import { ApplicationDecisionPanel } from "~/components/seif/application-decision-panel";
 import { formatTorontoDateTime } from "~/lib/date";
+import { formatStoredPhoneNumber } from "~/lib/phone";
 
 export const metadata = {
   title: "Application Details",
@@ -25,12 +26,15 @@ export default async function ApplicationDetailPage({
   const { id } = await params;
   const ctx = await createTRPCContext({ headers: await headers() });
   const caller = createCaller(ctx);
-  const application = await caller.application.getById({ id }).catch(() => null);
+  const application = await caller.application
+    .getById({ id })
+    .catch(() => null);
   if (!application) notFound();
 
   const form = application.formData as Record<string, unknown>;
   const readString = (value: unknown) =>
     typeof value === "string" && value.length > 0 ? value : "—";
+  const readPhone = (value: unknown) => formatStoredPhoneNumber(value) ?? "—";
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -53,7 +57,7 @@ export default async function ApplicationDetailPage({
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500">
+            <dt className="text-xs font-medium text-gray-500 uppercase">
               Applicant name
             </dt>
             <dd className="mt-0.5 text-gray-900">
@@ -61,23 +65,19 @@ export default async function ApplicationDetailPage({
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500">
+            <dt className="text-xs font-medium text-gray-500 uppercase">
               Email
             </dt>
-            <dd className="mt-0.5 text-gray-900">
-              {readString(form.email)}
-            </dd>
+            <dd className="mt-0.5 text-gray-900">{readString(form.email)}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500">
+            <dt className="text-xs font-medium text-gray-500 uppercase">
               Phone
             </dt>
-            <dd className="mt-0.5 text-gray-900">
-              {readString(form.phone)}
-            </dd>
+            <dd className="mt-0.5 text-gray-900">{readPhone(form.phone)}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500">
+            <dt className="text-xs font-medium text-gray-500 uppercase">
               Event or initiative
             </dt>
             <dd className="mt-0.5 text-gray-900">
@@ -87,7 +87,7 @@ export default async function ApplicationDetailPage({
           {form.eventTitle != null && form.eventTitle !== "" && (
             <>
               <div>
-                <dt className="text-xs font-medium uppercase text-gray-500">
+                <dt className="text-xs font-medium text-gray-500 uppercase">
                   Event title
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
@@ -95,7 +95,7 @@ export default async function ApplicationDetailPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase text-gray-500">
+                <dt className="text-xs font-medium text-gray-500 uppercase">
                   Event date
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
@@ -107,7 +107,7 @@ export default async function ApplicationDetailPage({
           {form.initiativeTitle != null && form.initiativeTitle !== "" && (
             <>
               <div>
-                <dt className="text-xs font-medium uppercase text-gray-500">
+                <dt className="text-xs font-medium text-gray-500 uppercase">
                   Initiative title
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
@@ -115,7 +115,7 @@ export default async function ApplicationDetailPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase text-gray-500">
+                <dt className="text-xs font-medium text-gray-500 uppercase">
                   Initiative date
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
@@ -127,7 +127,7 @@ export default async function ApplicationDetailPage({
         </dl>
         {application.budgetFilePath && (
           <div className="mt-6">
-            <dt className="text-xs font-medium uppercase text-gray-500">
+            <dt className="text-xs font-medium text-gray-500 uppercase">
               Budget file
             </dt>
             <a
@@ -145,13 +145,13 @@ export default async function ApplicationDetailPage({
           application.approvalConditions ??
           application.denialReason) && (
           <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-800">
+            <h2 className="text-sm font-semibold tracking-wide text-gray-800 uppercase">
               Review outcome
             </h2>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2">
               {application.reviewedAt && (
                 <div>
-                  <dt className="text-xs font-medium uppercase text-gray-500">
+                  <dt className="text-xs font-medium text-gray-500 uppercase">
                     Reviewed at
                   </dt>
                   <dd className="mt-0.5 text-gray-900">
@@ -161,17 +161,18 @@ export default async function ApplicationDetailPage({
               )}
               {application.reviewedBy && (
                 <div>
-                  <dt className="text-xs font-medium uppercase text-gray-500">
+                  <dt className="text-xs font-medium text-gray-500 uppercase">
                     Reviewed by
                   </dt>
                   <dd className="mt-0.5 text-gray-900">
-                    {application.reviewedBy.name} ({application.reviewedBy.email})
+                    {application.reviewedBy.name} (
+                    {application.reviewedBy.email})
                   </dd>
                 </div>
               )}
               {application.reviewerComments && (
                 <div>
-                  <dt className="text-xs font-medium uppercase text-gray-500">
+                  <dt className="text-xs font-medium text-gray-500 uppercase">
                     Acceptance comments
                   </dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">
@@ -181,7 +182,7 @@ export default async function ApplicationDetailPage({
               )}
               {application.approvalConditions && (
                 <div>
-                  <dt className="text-xs font-medium uppercase text-gray-500">
+                  <dt className="text-xs font-medium text-gray-500 uppercase">
                     Acceptance conditions
                   </dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">
@@ -191,7 +192,7 @@ export default async function ApplicationDetailPage({
               )}
               {application.denialReason && (
                 <div>
-                  <dt className="text-xs font-medium uppercase text-gray-500">
+                  <dt className="text-xs font-medium text-gray-500 uppercase">
                     Denial reason
                   </dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">
