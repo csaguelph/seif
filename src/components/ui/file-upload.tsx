@@ -42,8 +42,6 @@ export function BudgetFileUpload({
   const [fileSize, setFileSize] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const hasFile = status === "complete" && value;
-
   const uploadFile = (file: File) => {
     setError(null);
     setFileName(file.name);

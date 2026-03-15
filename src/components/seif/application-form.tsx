@@ -167,7 +167,7 @@ function SearchableOrganizationSelect({
       case "Enter":
         e.preventDefault();
         if (filtered[highlightIndex]) {
-          onChange(filtered[highlightIndex]!.id);
+          onChange(filtered[highlightIndex].id);
           setOpen(false);
           setQuery("");
         }
@@ -185,7 +185,7 @@ function SearchableOrganizationSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls="org-listbox"
-        aria-activedescendant={filtered[highlightIndex] ? `org-option-${filtered[highlightIndex]!.id}` : undefined}
+        aria-activedescendant={filtered[highlightIndex] ? `org-option-${filtered[highlightIndex].id}` : undefined}
         className="flex w-full items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-gray-900 shadow-sm focus-within:border-indigo-500 focus-within:outline-none focus-within:ring-1 focus-within:ring-indigo-500"
       >
         <input
