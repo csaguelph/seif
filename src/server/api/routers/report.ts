@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
 import { env } from "~/env.js";
 import type { ParsedReceipt, ReceiptLineItem, ReceiptReview } from "~/types/receipt-review";
+import { calcAllReceiptsEligibleTotal } from "~/lib/receipt-eligible";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -346,6 +347,61 @@ export const reportRouter = createTRPCRouter({
       });
 
       return entry;
+    }),
+
+  /**
+   * Finalise the receipt review. Automatically determines whether funds need
+   * to be returned by comparing eligible expenses to the allocated amount.
+   * Sets status to COMPLETE or PENDING_FUNDS_RETURN accordingly.
+   */
+  finalizeReview: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await ctx.db.seifReport.findUnique({
+        where: { id: input.id },
+        select: { id: true, status: true, amountAllocated: true, receiptReviews: true },
+      });
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+      if (report.status !== "SUBMITTED") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Report has already been finalised." });
+      }
+
+      const reviews = (report.receiptReviews as unknown[] | null) ?? [];
+      const totalEligible = calcAllReceiptsEligibleTotal(reviews);
+      const amountAllocated = Number(report.amountAllocated);
+      // Use a small epsilon to absorb floating-point rounding
+      const newStatus: "COMPLETE" | "PENDING_FUNDS_RETURN" =
+        totalEligible >= amountAllocated - 0.005 ? "COMPLETE" : "PENDING_FUNDS_RETURN";
+
+      return ctx.db.seifReport.update({
+        where: { id: input.id },
+        data: { status: newStatus, reviewedAt: new Date(), reviewedById: ctx.session.user.id },
+      });
+    }),
+
+  /**
+   * Confirm that the outstanding funds have been returned.
+   * Moves status from PENDING_FUNDS_RETURN → FUNDS_RETURNED.
+   */
+  confirmFundsReturned: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await ctx.db.seifReport.findUnique({
+        where: { id: input.id },
+        select: { id: true, status: true },
+      });
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+      if (report.status !== "PENDING_FUNDS_RETURN") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Report is not awaiting funds return.",
+        });
+      }
+
+      return ctx.db.seifReport.update({
+        where: { id: input.id },
+        data: { status: "FUNDS_RETURNED", reviewedAt: new Date(), reviewedById: ctx.session.user.id },
+      });
     }),
 
   /** Update report status and optional reviewer notes (admin). */

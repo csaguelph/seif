@@ -5,7 +5,7 @@ import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
 import { ReportStatusBadge } from "~/components/seif/report-status-badge";
-import { ReportStatusPanel } from "~/components/seif/report-status-panel";
+import { ReportPipelinePanel } from "~/components/seif/report-pipeline-panel";
 import { ReceiptReviewer } from "~/components/seif/receipt-reviewer";
 import { formatTorontoDateTime } from "~/lib/date";
 import { getApplicationTitle, getApplicationDate } from "~/lib/application";
@@ -153,10 +153,14 @@ export default async function AdminReportDetailPage({
         />
       </div>
 
-      <ReportStatusPanel
+      <ReportPipelinePanel
         reportId={report.id}
-        currentStatus={report.status}
-        initialNotes={report.reviewerNotes}
+        initialStatus={report.status}
+        amountAllocated={Number(report.amountAllocated)}
+        totalReceiptFiles={receipts.length}
+        initialReviews={receiptReviews}
+        initialReviewedAt={report.reviewedAt}
+        initialReviewedByName={report.reviewedBy?.name ?? null}
       />
     </div>
   );

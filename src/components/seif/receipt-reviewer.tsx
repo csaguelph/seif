@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import type { ParsedReceipt, ReceiptLineItem, ReceiptReview, OcrStatus } from "~/types/receipt-review";
+import { calcReceiptEligible, migrateReview as migrateReviewFromLib } from "~/lib/receipt-eligible";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,31 +37,7 @@ function newReceipt(): ParsedReceipt {
   return { items: [] };
 }
 
-/**
- * Migrate old single-receipt format (items/detectedSubtotal etc. at top level)
- * to the new multi-receipt format.
- */
-function migrateReview(raw: unknown): ReceiptReview {
-  const r = raw as Record<string, unknown>;
-  if (Array.isArray(r.receipts)) return raw as ReceiptReview;
-  // Old format had items at top level
-  return {
-    url: r.url as string,
-    ocrStatus: r.ocrStatus as OcrStatus,
-    ocrError: r.ocrError as string | undefined,
-    receipts: [
-      {
-        items: ((r.items as ReceiptLineItem[]) ?? []).map(({ id, description, amount, eligible }) => ({
-          id, description, amount, eligible,
-        })),
-        subtotal: r.detectedSubtotal as number | undefined,
-        tax: r.detectedTax as number | undefined,
-        total: r.detectedTotal as number | undefined,
-      },
-    ],
-    reviewedAt: r.reviewedAt as string | undefined,
-  };
-}
+const migrateReview = migrateReviewFromLib;
 
 function buildInitialReviews(
   urls: string[],
@@ -75,22 +52,7 @@ function buildInitialReviews(
   );
 }
 
-/** Eligible subtotal, prorated tax, and eligible total for a single parsed receipt. */
-function calcEligible(receipt: ParsedReceipt): {
-  subtotal: number;
-  tax: number;
-  total: number;
-} {
-  const eligibleSubtotal = receipt.items
-    .filter((i) => i.eligible)
-    .reduce((s, i) => s + i.amount, 0);
-  const allSubtotal = receipt.items.reduce((s, i) => s + i.amount, 0);
-  const proratedTax =
-    receipt.tax != null && allSubtotal > 0
-      ? (eligibleSubtotal / allSubtotal) * receipt.tax
-      : 0;
-  return { subtotal: eligibleSubtotal, tax: proratedTax, total: eligibleSubtotal + proratedTax };
-}
+const calcEligible = calcReceiptEligible;
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -173,8 +135,13 @@ export function ReceiptReviewer({
   };
 
   // Mutations
+  const utils = api.useUtils();
   const saveReview = api.report.saveReceiptReview.useMutation({
-    onSuccess: () => setSavedUrls((prev) => new Set([...prev, currentUrl])),
+    onSuccess: () => {
+      setSavedUrls((prev) => new Set([...prev, currentUrl]));
+      // Invalidate so the pipeline panel recalculates eligible totals
+      void utils.report.getById.invalidate({ id: reportId });
+    },
   });
 
   const triggerOcr = api.report.triggerReceiptOcr.useMutation({
