@@ -400,11 +400,27 @@ function PhoneNumberField({
   );
 }
 
-export function ApplicationForm() {
+export type EditApplicationData = {
+  id: string;
+  formData: Record<string, unknown>;
+  budgetFilePath: string | null;
+  organizationId: string;
+  amountRequested: number;
+};
+
+export function ApplicationForm({
+  editApplication,
+}: {
+  editApplication?: EditApplicationData;
+}) {
   const { data: session } = authClient.useSession();
-  const [formData, setFormData] = useState<FormData>({});
-  const [budgetPath, setBudgetPath] = useState<string>("");
-  const [phoneInput, setPhoneInput] = useState("");
+  const [formData, setFormData] = useState<FormData>(editApplication?.formData ?? {});
+  const [budgetPath, setBudgetPath] = useState<string>(editApplication?.budgetFilePath ?? "");
+  const [phoneInput, setPhoneInput] = useState(() => {
+    const raw = editApplication?.formData?.phone;
+    const phoneStr = typeof raw === "string" ? raw : "";
+    return phoneStr ? getPhoneInputState(phoneStr).formatted : "";
+  });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -412,9 +428,13 @@ export function ApplicationForm() {
     setFormData((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  // Restore draft from localStorage on mount (once)
+  // Restore draft from localStorage on mount (once) — skip when editing a rejected application
   useEffect(() => {
     if (draftRestored) return;
+    if (editApplication) {
+      setDraftRestored(true);
+      return;
+    }
     const draft = loadDraft();
     if (
       draft &&
@@ -430,16 +450,16 @@ export function ApplicationForm() {
       );
     }
     setDraftRestored(true);
-  }, [draftRestored]);
+  }, [draftRestored, editApplication]);
 
-  // Persist draft when form data or budget path changes (debounced)
+  // Persist draft when form data or budget path changes (debounced) — skip in edit mode
   useEffect(() => {
-    if (!draftRestored) return;
+    if (!draftRestored || editApplication) return;
     const t = setTimeout(() => {
       saveDraft(formData, budgetPath, phoneInput);
     }, 500);
     return () => clearTimeout(t);
-  }, [formData, budgetPath, draftRestored, phoneInput]);
+  }, [formData, budgetPath, draftRestored, editApplication, phoneInput]);
 
   const { data: organizations = [], isLoading: orgsLoading } =
     api.application.listOrganizations.useQuery();
@@ -448,6 +468,13 @@ export function ApplicationForm() {
       setSubmitError(null);
       clearDraft();
       window.location.href = "/apply?submitted=1";
+    },
+    onError: (e) => setSubmitError(e.message),
+  });
+  const resubmit = api.application.resubmit.useMutation({
+    onSuccess: (_, variables) => {
+      setSubmitError(null);
+      window.location.href = `/applications/${variables.id}`;
     },
     onError: (e) => setSubmitError(e.message),
   });
@@ -494,12 +521,22 @@ export function ApplicationForm() {
       return;
     }
 
-    create.mutate({
-      organizationId: orgId,
-      amountRequested: amount,
-      budgetFilePath: budgetPath,
-      formData,
-    });
+    if (editApplication) {
+      resubmit.mutate({
+        id: editApplication.id,
+        organizationId: orgId,
+        amountRequested: amount,
+        budgetFilePath: budgetPath || undefined,
+        formData,
+      });
+    } else {
+      create.mutate({
+        organizationId: orgId,
+        amountRequested: amount,
+        budgetFilePath: budgetPath,
+        formData,
+      });
+    }
   };
 
   return (
@@ -1312,6 +1349,24 @@ export function ApplicationForm() {
         <div className="mt-4 space-y-4">
           <div>
             <Label required>Upload your budget</Label>
+            {!session?.user && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Sign in to upload your budget and submit your application. Your
+                responses are saved automatically.
+                <button
+                  type="button"
+                  onClick={() =>
+                    void authClient.signIn.social({
+                      provider: "microsoft",
+                      callbackURL: "/apply",
+                    })
+                  }
+                  className="ml-2 font-medium text-amber-900 underline hover:no-underline"
+                >
+                  Sign in
+                </button>
+              </div>
+            )}
             <p className="mb-2 text-sm text-gray-500">
               Download and use the{" "}
               <a
@@ -1327,7 +1382,8 @@ export function ApplicationForm() {
             <BudgetFileUpload
               value={budgetPath}
               onChange={setBudgetPath}
-              hint="Excel only (.xlsx, .xls) (max. 10 MB)"
+              hint="Excel only (.xlsx, .xls) (max 5 MB)"
+              disabled={!session?.user}
             />
           </div>
           <div>
@@ -1414,17 +1470,17 @@ export function ApplicationForm() {
 
       {!session?.user && (
         <p className="text-sm text-amber-700">
-          You must sign in to submit. Your responses are saved automatically and
-          will be here when you return.
+          You must sign in to upload your budget and submit. Your responses are
+          saved automatically and will be here when you return.
         </p>
       )}
       <div className="flex justify-end gap-4">
         <button
           type="submit"
-          disabled={create.isPending}
+          disabled={create.isPending || resubmit.isPending}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
         >
-          {create.isPending
+          {create.isPending || resubmit.isPending
             ? "Submitting…"
             : session?.user
               ? "Submit Application"

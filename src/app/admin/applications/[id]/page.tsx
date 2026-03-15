@@ -38,12 +38,22 @@ export default async function ApplicationDetailPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-      <Link
-        href="/admin"
-        className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
-      >
-        ← Back to applications
-      </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/admin"
+          className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
+        >
+          ← Back to applications
+        </Link>
+        {application.report && (
+          <Link
+            href={`/admin/reports/${application.report.id}`}
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
+          >
+            View report →
+          </Link>
+        )}
+      </div>
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow">
         <div className="border-b border-gray-200 pb-4">
           <h1 className="text-xl font-semibold text-gray-900">
@@ -51,7 +61,11 @@ export default async function ApplicationDetailPage({
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             Submitted {formatTorontoDateTime(application.submittedAt)} · $
-            {Number(application.amountRequested).toFixed(2)} requested ·{" "}
+            {Number(application.amountRequested).toFixed(2)} requested
+            {application.amountApproved != null && (
+              <> · ${Number(application.amountApproved).toFixed(2)} awarded</>
+            )}
+            {" · "}
             {application.status}
           </p>
         </div>
@@ -143,7 +157,8 @@ export default async function ApplicationDetailPage({
         {(application.reviewedAt ??
           application.reviewerComments ??
           application.approvalConditions ??
-          application.denialReason) && (
+          application.denialReason ??
+          application.amountApproved) && (
           <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <h2 className="text-sm font-semibold tracking-wide text-gray-800 uppercase">
               Review outcome
@@ -167,6 +182,16 @@ export default async function ApplicationDetailPage({
                   <dd className="mt-0.5 text-gray-900">
                     {application.reviewedBy.name} (
                     {application.reviewedBy.email})
+                  </dd>
+                </div>
+              )}
+              {application.amountApproved != null && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Amount awarded
+                  </dt>
+                  <dd className="mt-0.5 text-gray-900">
+                    ${Number(application.amountApproved).toFixed(2)}
                   </dd>
                 </div>
               )}
@@ -218,6 +243,8 @@ export default async function ApplicationDetailPage({
         initialComments={application.reviewerComments}
         initialConditions={application.approvalConditions}
         initialDenialReason={application.denialReason}
+        amountRequested={Number(application.amountRequested)}
+        initialAmountApproved={application.amountApproved != null ? Number(application.amountApproved) : undefined}
       />
     </div>
   );

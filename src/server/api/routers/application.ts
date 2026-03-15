@@ -21,7 +21,7 @@ export const applicationRouter = createTRPCRouter({
     });
   }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         organizationId: z.string().cuid(),
@@ -37,7 +37,7 @@ export const applicationRouter = createTRPCRouter({
           amountRequested: input.amountRequested,
           budgetFilePath: input.budgetFilePath ?? null,
           formData: input.formData as object,
-          submittedById: ctx.session?.user?.id ?? null,
+          submittedById: ctx.session.user.id,
         },
       });
     }),
@@ -60,6 +60,7 @@ export const applicationRouter = createTRPCRouter({
       orderBy: { submittedAt: "desc" },
       include: {
         organization: true,
+        report: true,
       },
     });
   }),
@@ -76,6 +77,7 @@ export const applicationRouter = createTRPCRouter({
         include: {
           organization: true,
           reviewedBy: true,
+          report: true,
         },
       });
       if (!app) {
@@ -93,6 +95,7 @@ export const applicationRouter = createTRPCRouter({
           organization: true,
           submittedBy: true,
           reviewedBy: true,
+          report: true,
         },
       });
     }),
@@ -103,14 +106,33 @@ export const applicationRouter = createTRPCRouter({
         id: z.string().cuid(),
         comments: optionalTrimmedString,
         conditions: optionalTrimmedString,
+        amountApproved: z.number().positive().finite().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const result = await ctx.db.seifApplication.updateMany({
+      const application = await ctx.db.seifApplication.findFirst({
         where: {
           id: input.id,
           status: { in: reviewableStatuses },
         },
+      });
+      if (!application) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or under-review applications can be approved.",
+        });
+      }
+      if (
+        input.amountApproved != null &&
+        input.amountApproved > Number(application.amountRequested)
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Amount approved cannot exceed the amount requested.",
+        });
+      }
+      await ctx.db.seifApplication.update({
+        where: { id: input.id },
         data: {
           status: "APPROVED",
           reviewedById: ctx.session.user.id,
@@ -118,16 +140,9 @@ export const applicationRouter = createTRPCRouter({
           approvalConditions: normalizeNullableString(input.conditions),
           denialReason: null,
           reviewedAt: new Date(),
+          ...(input.amountApproved != null && { amountApproved: input.amountApproved }),
         },
       });
-
-      if (result.count === 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Only submitted or under-review applications can be approved.",
-        });
-      }
-
       return { success: true };
     }),
 
@@ -162,5 +177,48 @@ export const applicationRouter = createTRPCRouter({
       }
 
       return { success: true };
+    }),
+
+  /** Resubmit a rejected application (owner only). Updates form data and sets status back to SUBMITTED. */
+  resubmit: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().cuid(),
+        organizationId: z.string().cuid(),
+        amountRequested: z.number().positive().finite(),
+        budgetFilePath: z.string().optional(),
+        formData: formDataSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.seifApplication.findFirst({
+        where: {
+          id: input.id,
+          submittedById: ctx.session.user.id,
+          status: "REJECTED",
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Application not found or not eligible for resubmission (must be denied and yours).",
+        });
+      }
+      return ctx.db.seifApplication.update({
+        where: { id: input.id },
+        data: {
+          organizationId: input.organizationId,
+          amountRequested: input.amountRequested,
+          budgetFilePath: input.budgetFilePath ?? existing.budgetFilePath,
+          formData: input.formData as object,
+          status: "SUBMITTED",
+          reviewedAt: null,
+          reviewedById: null,
+          reviewerComments: null,
+          approvalConditions: null,
+          denialReason: null,
+          amountApproved: null,
+        },
+      });
     }),
 });

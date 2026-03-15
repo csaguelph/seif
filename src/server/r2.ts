@@ -23,14 +23,15 @@ export type UploadResult = { key: string; url: string };
 
 /**
  * Upload a buffer to R2 and return the public URL.
- * Key format: budgets/<uuid>.<ext> so we can prefix or list by folder later.
+ * @param prefix - Folder prefix in the bucket (e.g. "budgets", "reports").
  */
 export async function uploadToR2(
   body: Buffer,
   contentType: string,
-  extension: string
+  extension: string,
+  prefix: string
 ): Promise<UploadResult> {
-  const key = `budgets/${randomUUID()}${extension}`;
+  const key = `${prefix}/${randomUUID()}${extension}`;
 
   await r2Client.send(
     new PutObjectCommand({

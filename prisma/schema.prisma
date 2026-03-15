@@ -26,8 +26,10 @@ model User {
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
-  applications  SeifApplication[] @relation("ApplicationSubmitter")
+  applications      SeifApplication[] @relation("ApplicationSubmitter")
   reviewedApplications SeifApplication[] @relation("ApplicationReviewer")
+  submittedReports  SeifReport[]       @relation("ReportSubmitter")
+  reviewedReports   SeifReport[]       @relation("ReportReviewer")
 }
 
 model Session {
@@ -110,4 +112,39 @@ model SeifApplication {
   reviewerComments   String?
   approvalConditions String?
   denialReason       String?
+  // Approved amount (may differ from amountRequested); used for SEIF report pre-fill
+  amountApproved     Decimal?  @db.Decimal(10, 2)
+  // Post-approval SEIF report (one per application)
+  report             SeifReport?
+}
+
+// Report status: tracking review and whether funds have been returned
+enum ReportStatus {
+  SUBMITTED             // Report submitted, awaiting coordinator review
+  COMPLETE              // Reviewed and accepted; no funds to return
+  PENDING_FUNDS_RETURN  // Coordinator determined they must return (some or all) funds
+  FUNDS_RETURNED        // Applicant has returned the funds
+}
+
+// SEIF report submitted after an approved application (event/initiative completed)
+model SeifReport {
+  id                    String          @id @default(cuid())
+  applicationId         String          @unique
+  application           SeifApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  status                ReportStatus    @default(SUBMITTED)
+  amountAllocated       Decimal         @db.Decimal(10, 2)
+  amountSpent           Decimal         @db.Decimal(10, 2)
+  underSpendExplanation String?
+  descriptionActivities String
+  finalBudgetFilePath   String
+  receiptsFilePaths     Json            // array of uploaded receipt URLs
+  submittedById         String?
+  submittedBy           User?           @relation("ReportSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt           DateTime        @default(now())
+  reviewedAt            DateTime?
+  reviewedById          String?
+  reviewedBy            User?           @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewerNotes         String?         // Internal notes (e.g. for funds-return tracking)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 }

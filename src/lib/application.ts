@@ -18,3 +18,24 @@ export function getApplicationTitle(formData: unknown): string {
       : "";
   return event || initiative || "—";
 }
+
+/**
+ * Derives the event or initiative date from application form data.
+ */
+export function getApplicationDate(formData: unknown): string {
+  const form = formData as
+    | { eventDate?: string; initiativeDate?: string }
+    | null
+    | undefined;
+  if (!form) return "—";
+  const eventDate =
+    typeof form.eventDate === "string" && form.eventDate.trim().length > 0
+      ? form.eventDate.trim()
+      : "";
+  const initiativeDate =
+    typeof form.initiativeDate === "string" &&
+    form.initiativeDate.trim().length > 0
+      ? form.initiativeDate.trim()
+      : "";
+  return eventDate || initiativeDate || "—";
+}

@@ -5,25 +5,23 @@ import { formatTorontoDate } from "~/lib/date";
 import { getApplicationTitle } from "~/lib/application";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
-import { ApplicationStatusBadge } from "./application-status-badge";
+import { ReportStatusBadge } from "./report-status-badge";
 
-export function ApplicationsTable() {
-  const { data: applications, isLoading, error } = api.application.list.useQuery();
+export function ReportsTable() {
+  const { data: reports, isLoading, error } = api.report.list.useQuery();
 
   if (isLoading) {
-    return (
-      <div className="mt-6 text-gray-500">Loading applications…</div>
-    );
+    return <div className="mt-6 text-gray-500">Loading reports…</div>;
   }
   if (error) {
     return (
       <div className="mt-6 text-red-600">Failed to load: {error.message}</div>
     );
   }
-  if (!applications?.length) {
+  if (!reports?.length) {
     return (
       <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600">
-        No applications yet.
+        No reports yet.
       </div>
     );
   }
@@ -34,7 +32,7 @@ export function ApplicationsTable() {
         <thead className="bg-gray-50">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Submitted
+              Report submitted
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
               Organization
@@ -43,10 +41,7 @@ export function ApplicationsTable() {
               Title
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Applicant
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-              Requested
+              Amount spent
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
               Status
@@ -57,38 +52,29 @@ export function ApplicationsTable() {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 bg-white">
-          {applications.map((app: RouterOutputs["application"]["list"][number]) => (
-            <tr key={app.id} className="hover:bg-gray-50">
+          {reports.map((report: RouterOutputs["report"]["list"][number]) => (
+            <tr key={report.id} className="hover:bg-gray-50">
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                {formatTorontoDate(app.submittedAt)}
+                {formatTorontoDate(report.submittedAt)}
               </td>
               <td className="px-4 py-3 text-sm text-gray-900">
-                {app.organization.name}
+                {report.application.organization.name}
               </td>
               <td className="px-4 py-3 text-sm text-gray-900">
-                {getApplicationTitle(app.formData)}
-              </td>
-              <td className="px-4 py-3 text-sm text-gray-600">
-                {(app.formData as { fullName?: string })?.fullName ?? app.submittedBy?.name ?? "—"}
+                {getApplicationTitle(report.application.formData)}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                ${Number(app.amountRequested).toFixed(2)}
-                {"amountApproved" in app && app.amountApproved != null ? (
-                  <span className="text-gray-500">
-                    {" "}
-                    → ${Number(app.amountApproved).toFixed(2)} awarded
-                  </span>
-                ) : null}
+                ${Number(report.amountSpent).toFixed(2)}
               </td>
               <td className="px-4 py-3">
-                <ApplicationStatusBadge status={app.status} />
+                <ReportStatusBadge status={report.status} />
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
                 <Link
-                  href={`/admin/applications/${app.id}`}
+                  href={`/admin/reports/${report.id}`}
                   className="font-medium text-indigo-600 hover:text-indigo-900"
                 >
-                  View
+                  Review
                 </Link>
               </td>
             </tr>

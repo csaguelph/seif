@@ -5,6 +5,7 @@ import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
 import { ApplicationStatusBadge } from "~/components/seif/application-status-badge";
+import { ReportStatusBadge } from "~/components/seif/report-status-badge";
 import { formatTorontoDateTime } from "~/lib/date";
 import { formatStoredPhoneNumber } from "~/lib/phone";
 
@@ -37,13 +38,42 @@ export default async function ApplicationDetailPage({
   const readPhone = (value: unknown) => formatStoredPhoneNumber(value) ?? "—";
 
   return (
-    <div className="mx-auto max-w-4xl py-8">
-      <Link
-        href="/"
-        className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
-      >
-        ← Back to dashboard
-      </Link>
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/"
+          className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
+        >
+          ← Back to dashboard
+        </Link>
+        {application.status === "REJECTED" && (
+          <Link
+            href={`/applications/${application.id}/edit`}
+            className="inline-flex rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+          >
+            Edit & resubmit
+          </Link>
+        )}
+        {application.status === "APPROVED" && !application.report && (
+          <Link
+            href={`/applications/${application.id}/report`}
+            className="inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Submit SEIF report
+          </Link>
+        )}
+        {application.status === "APPROVED" && application.report && (
+          <>
+            <ReportStatusBadge status={application.report.status} />
+            <Link
+              href={`/applications/${application.id}/report/view`}
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
+            >
+              View report →
+            </Link>
+          </>
+        )}
+      </div>
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow">
         <div className="border-b border-gray-200 pb-4">
           <h1 className="text-xl font-semibold text-gray-900">
@@ -145,7 +175,8 @@ export default async function ApplicationDetailPage({
         {(application.reviewedAt ??
           application.reviewerComments ??
           application.approvalConditions ??
-          application.denialReason) && (
+          application.denialReason ??
+          application.amountApproved) && (
           <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 p-4">
             <h2 className="text-sm font-semibold tracking-wide text-gray-800 uppercase">
               Review outcome
@@ -158,6 +189,16 @@ export default async function ApplicationDetailPage({
                   </dt>
                   <dd className="mt-0.5 text-gray-900">
                     {formatTorontoDateTime(application.reviewedAt)}
+                  </dd>
+                </div>
+              )}
+              {application.amountApproved != null && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Amount awarded
+                  </dt>
+                  <dd className="mt-0.5 text-gray-900">
+                    ${Number(application.amountApproved).toFixed(2)}
                   </dd>
                 </div>
               )}
