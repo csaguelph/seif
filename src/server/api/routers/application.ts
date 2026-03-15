@@ -60,6 +60,7 @@ export const applicationRouter = createTRPCRouter({
       orderBy: { submittedAt: "desc" },
       include: {
         organization: true,
+        report: true,
       },
     });
   }),
@@ -76,6 +77,7 @@ export const applicationRouter = createTRPCRouter({
         include: {
           organization: true,
           reviewedBy: true,
+          report: true,
         },
       });
       if (!app) {
@@ -93,6 +95,7 @@ export const applicationRouter = createTRPCRouter({
           organization: true,
           submittedBy: true,
           reviewedBy: true,
+          report: true,
         },
       });
     }),
@@ -103,6 +106,7 @@ export const applicationRouter = createTRPCRouter({
         id: z.string().cuid(),
         comments: optionalTrimmedString,
         conditions: optionalTrimmedString,
+        amountApproved: z.number().positive().finite().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -118,6 +122,7 @@ export const applicationRouter = createTRPCRouter({
           approvalConditions: normalizeNullableString(input.conditions),
           denialReason: null,
           reviewedAt: new Date(),
+          ...(input.amountApproved != null && { amountApproved: input.amountApproved }),
         },
       });
 
@@ -162,5 +167,48 @@ export const applicationRouter = createTRPCRouter({
       }
 
       return { success: true };
+    }),
+
+  /** Resubmit a rejected application (owner only). Updates form data and sets status back to SUBMITTED. */
+  resubmit: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().cuid(),
+        organizationId: z.string().cuid(),
+        amountRequested: z.number().positive().finite(),
+        budgetFilePath: z.string().optional(),
+        formData: formDataSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.seifApplication.findFirst({
+        where: {
+          id: input.id,
+          submittedById: ctx.session.user.id,
+          status: "REJECTED",
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Application not found or not eligible for resubmission (must be denied and yours).",
+        });
+      }
+      return ctx.db.seifApplication.update({
+        where: { id: input.id },
+        data: {
+          organizationId: input.organizationId,
+          amountRequested: input.amountRequested,
+          budgetFilePath: input.budgetFilePath ?? existing.budgetFilePath,
+          formData: input.formData as object,
+          status: "SUBMITTED",
+          reviewedAt: null,
+          reviewedById: null,
+          reviewerComments: null,
+          approvalConditions: null,
+          denialReason: null,
+          amountApproved: null,
+        },
+      });
     }),
 });

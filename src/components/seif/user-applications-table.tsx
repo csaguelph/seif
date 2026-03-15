@@ -6,6 +6,7 @@ import { getApplicationTitle } from "~/lib/application";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import { ApplicationStatusBadge } from "./application-status-badge";
+import { ReportStatusBadge } from "./report-status-badge";
 
 type App = RouterOutputs["application"]["listMyApplications"][number];
 
@@ -78,12 +79,34 @@ export function UserApplicationsTable() {
                 <ApplicationStatusBadge status={app.status} />
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
-                <Link
-                  href={`/applications/${app.id}`}
-                  className="font-medium text-indigo-600 hover:text-indigo-900"
-                >
-                  View details
-                </Link>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Link
+                    href={`/applications/${app.id}`}
+                    className="font-medium text-indigo-600 hover:text-indigo-900"
+                  >
+                    View details
+                  </Link>
+                  {app.status === "REJECTED" && (
+                    <Link
+                      href={`/applications/${app.id}/edit`}
+                      className="font-medium text-amber-700 hover:text-amber-900"
+                    >
+                      Edit & resubmit
+                    </Link>
+                  )}
+                  {app.status === "APPROVED" && (
+                    app.report ? (
+                      <ReportStatusBadge status={app.report.status} />
+                    ) : (
+                      <Link
+                        href={`/applications/${app.id}/report`}
+                        className="font-medium text-emerald-700 hover:text-emerald-900"
+                      >
+                        Submit report
+                      </Link>
+                    )
+                  )}
+                </div>
               </td>
             </tr>
           ))}

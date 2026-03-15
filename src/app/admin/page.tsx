@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "~/server/better-auth/server";
 import { ApplicationsTable } from "~/components/seif/applications-table";
 
@@ -20,6 +21,20 @@ export default async function AdminPage() {
     <div className="py-8">
       <h1 className="text-2xl font-semibold text-gray-900">SEIF Admin</h1>
       <p className="mt-1 text-gray-600">View and manage funding applications.</p>
+      <nav className="mt-4 flex gap-4">
+        <Link
+          href="/admin"
+          className="font-medium text-indigo-600 hover:text-indigo-900"
+        >
+          Applications
+        </Link>
+        <Link
+          href="/admin/reports"
+          className="font-medium text-gray-600 hover:text-indigo-600 hover:text-indigo-900"
+        >
+          Reports
+        </Link>
+      </nav>
       <ApplicationsTable />
     </div>
   );

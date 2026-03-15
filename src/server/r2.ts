@@ -46,3 +46,26 @@ export async function uploadToR2(
 
   return { key, url };
 }
+
+/** Upload report files (final budget, receipts). Key prefix: reports/ */
+export async function uploadReportFile(
+  body: Buffer,
+  contentType: string,
+  extension: string
+): Promise<UploadResult> {
+  const key = `reports/${randomUUID()}${extension}`;
+
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  );
+
+  const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
+  const url = `${baseUrl}/${key}`;
+
+  return { key, url };
+}

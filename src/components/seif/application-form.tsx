@@ -255,10 +255,22 @@ function SearchableOrganizationSelect({
   );
 }
 
-export function ApplicationForm() {
+export type EditApplicationData = {
+  id: string;
+  formData: Record<string, unknown>;
+  budgetFilePath: string | null;
+  organizationId: string;
+  amountRequested: number;
+};
+
+export function ApplicationForm({
+  editApplication,
+}: {
+  editApplication?: EditApplicationData;
+}) {
   const { data: session } = authClient.useSession();
-  const [formData, setFormData] = useState<FormData>({});
-  const [budgetPath, setBudgetPath] = useState<string>("");
+  const [formData, setFormData] = useState<FormData>(editApplication?.formData ?? {});
+  const [budgetPath, setBudgetPath] = useState<string>(editApplication?.budgetFilePath ?? "");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -266,25 +278,29 @@ export function ApplicationForm() {
     setFormData((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  // Restore draft from localStorage on mount (once)
+  // Restore draft from localStorage on mount (once) — skip when editing a rejected application
   useEffect(() => {
     if (draftRestored) return;
+    if (editApplication) {
+      setDraftRestored(true);
+      return;
+    }
     const draft = loadDraft();
     if (draft && (Object.keys(draft.formData).length > 0 || draft.budgetPath)) {
       setFormData(draft.formData);
       setBudgetPath(draft.budgetPath);
     }
     setDraftRestored(true);
-  }, [draftRestored]);
+  }, [draftRestored, editApplication]);
 
-  // Persist draft when form data or budget path changes (debounced)
+  // Persist draft when form data or budget path changes (debounced) — skip in edit mode
   useEffect(() => {
-    if (!draftRestored) return;
+    if (!draftRestored || editApplication) return;
     const t = setTimeout(() => {
       saveDraft(formData, budgetPath);
     }, 500);
     return () => clearTimeout(t);
-  }, [formData, budgetPath, draftRestored]);
+  }, [formData, budgetPath, draftRestored, editApplication]);
 
   const { data: organizations = [], isLoading: orgsLoading } =
     api.application.listOrganizations.useQuery();
@@ -293,6 +309,13 @@ export function ApplicationForm() {
       setSubmitError(null);
       clearDraft();
       window.location.href = "/apply?submitted=1";
+    },
+    onError: (e) => setSubmitError(e.message),
+  });
+  const resubmit = api.application.resubmit.useMutation({
+    onSuccess: (_, variables) => {
+      setSubmitError(null);
+      window.location.href = `/applications/${variables.id}`;
     },
     onError: (e) => setSubmitError(e.message),
   });
@@ -333,12 +356,22 @@ export function ApplicationForm() {
       return;
     }
 
-    create.mutate({
-      organizationId: orgId,
-      amountRequested: amount,
-      budgetFilePath: budgetPath,
-      formData,
-    });
+    if (editApplication) {
+      resubmit.mutate({
+        id: editApplication.id,
+        organizationId: orgId,
+        amountRequested: amount,
+        budgetFilePath: budgetPath || undefined,
+        formData,
+      });
+    } else {
+      create.mutate({
+        organizationId: orgId,
+        amountRequested: amount,
+        budgetFilePath: budgetPath,
+        formData,
+      });
+    }
   };
 
   return (

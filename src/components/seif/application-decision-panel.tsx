@@ -18,6 +18,8 @@ type ApplicationDecisionPanelProps = {
   initialComments: string | null;
   initialConditions: string | null;
   initialDenialReason: string | null;
+  /** Pre-fill for amount approved (defaults to amount requested if not set) */
+  amountRequested: number;
 };
 
 export function ApplicationDecisionPanel({
@@ -26,6 +28,7 @@ export function ApplicationDecisionPanel({
   initialComments,
   initialConditions,
   initialDenialReason,
+  amountRequested,
 }: ApplicationDecisionPanelProps) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -33,6 +36,9 @@ export function ApplicationDecisionPanel({
   const [comments, setComments] = useState(initialComments ?? "");
   const [conditions, setConditions] = useState(initialConditions ?? "");
   const [denialReason, setDenialReason] = useState(initialDenialReason ?? "");
+  const [amountApproved, setAmountApproved] = useState<string>(
+    String(amountRequested)
+  );
 
   const refreshApplication = () => {
     void utils.application.list.invalidate();
@@ -58,10 +64,12 @@ export function ApplicationDecisionPanel({
 
   const handleApprove = () => {
     rejectMutation.reset();
+    const approved = amountApproved.trim() ? Number(amountApproved) : undefined;
     approveMutation.mutate({
       id: applicationId,
       comments,
       conditions,
+      amountApproved: approved != null && Number.isFinite(approved) ? approved : undefined,
     });
   };
 
@@ -117,6 +125,24 @@ export function ApplicationDecisionPanel({
             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
             placeholder="Optional conditions, such as limits on how funds may be used."
           />
+
+          <label className="mt-4 block text-sm font-medium text-gray-700" htmlFor="approve-amount">
+            Amount awarded
+          </label>
+          <input
+            id="approve-amount"
+            type="number"
+            step="0.01"
+            min="0"
+            value={amountApproved}
+            onChange={(event) => setAmountApproved(event.target.value)}
+            disabled={!isReviewable}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+            placeholder={String(amountRequested)}
+          />
+          <p className="mt-0.5 text-xs text-gray-500">
+            The grant amount the committee is awarding (can be any amount up to the amount requested).
+          </p>
 
             <button
               type="button"

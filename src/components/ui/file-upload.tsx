@@ -252,3 +252,297 @@ export function BudgetFileUpload({
     </div>
   );
 }
+
+// --- Report uploads (final budget: Excel only, same as application; receipts: 5MB each, max 10) ---
+const REPORT_BUDGET_ACCEPT = ".xlsx,.xls";
+const REPORT_BUDGET_EXT = [".xlsx", ".xls"];
+const REPORT_BUDGET_MAX_SIZE = 10 * 1024 * 1024; // 10MB, same as application form
+
+const RECEIPT_MAX_SIZE = 5 * 1024 * 1024; // 5MB per receipt
+const RECEIPT_ACCEPT = ".xlsx,.xls,.pdf,.png,.jpg,.jpeg";
+const RECEIPT_EXT = [".xlsx", ".xls", ".pdf", ".png", ".jpg", ".jpeg"];
+const MAX_RECEIPTS = 10;
+
+interface ReportFileUploadProps {
+  value: string;
+  onChange: (path: string) => void;
+  disabled?: boolean;
+  label?: string;
+  hint?: string;
+}
+
+/** Single file upload for SEIF report final budget — Excel only (same as application form). */
+export function ReportBudgetUpload({
+  value,
+  onChange,
+  disabled = false,
+  label = "Final budget",
+  hint = "Use the specified format from the SEIF website. Excel only (.xlsx, .xls) (max 10 MB).",
+}: ReportFileUploadProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [status, setStatus] = useState<UploadStatus>("idle");
+  const [progress, setProgress] = useState(0);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const uploadFile = (file: File) => {
+    setError(null);
+    setFileName(file.name);
+    if (file.size > REPORT_BUDGET_MAX_SIZE) {
+      setError("File too large (max 10 MB)");
+      setStatus("failed");
+      return;
+    }
+    const ext = "." + (file.name.split(".").pop() ?? "").toLowerCase();
+    if (!REPORT_BUDGET_EXT.includes(ext)) {
+      setError("Excel files only (.xlsx, .xls)");
+      setStatus("failed");
+      return;
+    }
+    setStatus("uploading");
+    setProgress(0);
+    const formData = new FormData();
+    formData.set("file", file);
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText) as { path: string };
+          onChange(data.path);
+          setProgress(100);
+          setStatus("complete");
+        } catch {
+          setError("Invalid response");
+          setStatus("failed");
+        }
+      } else {
+        try {
+          const data = JSON.parse(xhr.responseText) as { error?: string };
+          setError(data.error ?? "Upload failed");
+        } catch {
+          setError("Upload failed");
+        }
+        setStatus("failed");
+      }
+    });
+    xhr.addEventListener("error", () => {
+      setError("Upload failed");
+      setStatus("failed");
+    });
+    xhr.open("POST", "/api/upload");
+    xhr.send(formData);
+  };
+
+  return (
+    <div className="space-y-2">
+      {label && (
+        <p className="text-sm font-medium text-gray-700">{label}</p>
+      )}
+      <div
+        onDrop={(e) => {
+          e.preventDefault();
+          if (!disabled && e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onClick={() => !disabled && inputRef.current?.click()}
+        className={`rounded-lg border-2 border-dashed p-4 text-center text-sm ${
+          disabled ? "cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white hover:bg-gray-50/50"
+        } border-gray-300`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={REPORT_BUDGET_ACCEPT}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) uploadFile(f);
+            e.target.value = "";
+          }}
+          disabled={disabled}
+          className="sr-only"
+        />
+        <Upload className="mx-auto h-8 w-8 text-gray-400" />
+        <p className="mt-1 text-gray-600">{hint}</p>
+      </div>
+      {status !== "idle" && fileName && (
+        <div className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+          <span className="truncate">{fileName}</span>
+          <div className="flex items-center gap-2">
+            {status === "uploading" && <span className="text-xs text-gray-500">{progress}%</span>}
+            {status === "complete" && <CheckCircle className="h-4 w-4 text-green-600" />}
+            {status === "failed" && <span className="text-xs text-red-600">{error}</span>}
+            {(status === "complete" || status === "failed") && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setStatus("idle");
+                  setFileName(null);
+                  setError(null);
+                }}
+                disabled={disabled}
+                className="text-indigo-600 hover:text-indigo-800"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {value && status === "idle" && !fileName && (
+        <div className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+          <span className="truncate">Uploaded: {value}</span>
+          <button type="button" onClick={() => onChange("")} disabled={disabled} className="text-indigo-600 hover:text-indigo-800">Remove</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ReportReceiptsUploadProps {
+  value: string[];
+  onChange: (paths: string[]) => void;
+  disabled?: boolean;
+}
+
+/** Multiple file upload for SEIF report receipts (max 10, 5 MB each). */
+export function ReportReceiptsUpload({
+  value,
+  onChange,
+  disabled = false,
+}: ReportReceiptsUploadProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const uploadFile = (file: File): Promise<string | null> => {
+    return new Promise((resolve) => {
+      if (file.size > RECEIPT_MAX_SIZE) {
+        setError("File too large (max 5 MB per receipt)");
+        resolve(null);
+        return;
+      }
+      const ext = "." + (file.name.split(".").pop() ?? "").toLowerCase();
+      if (!RECEIPT_EXT.includes(ext)) {
+        setError("Allowed: Excel, PDF, or images");
+        resolve(null);
+        return;
+      }
+      setError(null);
+      const formData = new FormData();
+      formData.set("file", file);
+      const xhr = new XMLHttpRequest();
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText) as { path: string };
+            resolve(data.path);
+          } catch {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+      });
+      xhr.addEventListener("error", () => resolve(null));
+      xhr.open("POST", "/api/upload-report");
+      xhr.send(formData);
+    });
+  };
+
+  const handleSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const remaining = MAX_RECEIPTS - value.length;
+    if (remaining <= 0) {
+      setError(`Maximum ${MAX_RECEIPTS} receipts. Contact the clubs coordinator if you need to submit more.`);
+      return;
+    }
+    const toAdd = files.slice(0, remaining);
+    setUploading(true);
+    setError(null);
+    const paths: string[] = [];
+    for (const file of toAdd) {
+      const path = await uploadFile(file);
+      if (path) paths.push(path);
+    }
+    if (paths.length > 0) onChange([...value, ...paths]);
+    if (files.length > remaining && paths.length > 0) {
+      setError(`Only ${remaining} receipt(s) could be added (max ${MAX_RECEIPTS}). Contact the clubs coordinator if you need more.`);
+    }
+    setUploading(false);
+  };
+
+  const removeOne = (index: number) => {
+    onChange(value.filter((_, i) => i !== index));
+  };
+
+  const atLimit = value.length >= MAX_RECEIPTS;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-gray-700">Upload all receipts</p>
+      <p className="text-xs text-gray-500">
+        Up to {MAX_RECEIPTS} receipts, 5 MB each. For issues or to submit more than {MAX_RECEIPTS}, contact the clubs coordinator (csaclubs@uoguelph.ca).
+      </p>
+      <div
+        onDrop={async (e) => {
+          e.preventDefault();
+          if (disabled || uploading || atLimit) return;
+          const files = Array.from(e.dataTransfer.files ?? []).slice(0, MAX_RECEIPTS - value.length);
+          if (files.length === 0) return;
+          setUploading(true);
+          setError(null);
+          const paths: string[] = [];
+          for (const file of files) {
+            const path = await uploadFile(file);
+            if (path) paths.push(path);
+          }
+          if (paths.length > 0) onChange([...value, ...paths]);
+          setUploading(false);
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onClick={() => !disabled && !uploading && !atLimit && inputRef.current?.click()}
+        className={`rounded-lg border-2 border-dashed p-4 text-center text-sm ${
+          disabled || uploading || atLimit ? "cursor-not-allowed bg-gray-50" : "cursor-pointer bg-white hover:bg-gray-50/50"
+        } border-gray-300`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={RECEIPT_ACCEPT}
+          multiple
+          onChange={handleSelect}
+          disabled={disabled || uploading || atLimit}
+          className="sr-only"
+        />
+        <Upload className="mx-auto h-8 w-8 text-gray-400" />
+        <p className="mt-1 text-gray-600">
+          {uploading ? "Uploading…" : atLimit ? `${MAX_RECEIPTS} receipts uploaded` : `Click or drag to add receipts (${value.length}/${MAX_RECEIPTS})`}
+        </p>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      {value.length > 0 && (
+        <ul className="space-y-1 rounded border border-gray-200 bg-gray-50 p-2">
+          {value.map((path, i) => (
+            <li key={path + i} className="flex items-center justify-between text-sm">
+              <span className="truncate">{path}</span>
+              <button
+                type="button"
+                onClick={() => removeOne(i)}
+                disabled={disabled}
+                className="text-indigo-600 hover:text-indigo-800"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
