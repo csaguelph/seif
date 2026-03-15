@@ -116,10 +116,9 @@ export const reportRouter = createTRPCRouter({
       const data = {
         status: input.status,
         reviewerNotes: input.reviewerNotes !== undefined ? (input.reviewerNotes?.trim() || null) : undefined,
-        ...(input.status !== "SUBMITTED" && {
-          reviewedAt: new Date(),
-          reviewedById: ctx.session.user.id,
-        }),
+        ...(input.status === "SUBMITTED"
+          ? { reviewedAt: null, reviewedById: null }
+          : { reviewedAt: new Date(), reviewedById: ctx.session.user.id }),
       };
       return ctx.db.seifReport.update({
         where: { id: input.id },

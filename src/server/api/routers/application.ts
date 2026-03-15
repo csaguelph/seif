@@ -110,11 +110,29 @@ export const applicationRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const result = await ctx.db.seifApplication.updateMany({
+      const application = await ctx.db.seifApplication.findFirst({
         where: {
           id: input.id,
           status: { in: reviewableStatuses },
         },
+      });
+      if (!application) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or under-review applications can be approved.",
+        });
+      }
+      if (
+        input.amountApproved != null &&
+        input.amountApproved > Number(application.amountRequested)
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Amount approved cannot exceed the amount requested.",
+        });
+      }
+      await ctx.db.seifApplication.update({
+        where: { id: input.id },
         data: {
           status: "APPROVED",
           reviewedById: ctx.session.user.id,
@@ -125,14 +143,6 @@ export const applicationRouter = createTRPCRouter({
           ...(input.amountApproved != null && { amountApproved: input.amountApproved }),
         },
       });
-
-      if (result.count === 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Only submitted or under-review applications can be approved.",
-        });
-      }
-
       return { success: true };
     }),
 

@@ -7,15 +7,7 @@ import { headers } from "next/headers";
 import { ReportStatusBadge } from "~/components/seif/report-status-badge";
 import { ReportStatusPanel } from "~/components/seif/report-status-panel";
 import { formatTorontoDateTime } from "~/lib/date";
-import { getApplicationTitle } from "~/lib/application";
-
-function getApplicationDateFromForm(formData: unknown): string {
-  const form = formData as { eventDate?: string; initiativeDate?: string } | null | undefined;
-  if (!form) return "—";
-  const eventDate = typeof form.eventDate === "string" && form.eventDate.trim() ? form.eventDate.trim() : "";
-  const initiativeDate = typeof form.initiativeDate === "string" && form.initiativeDate.trim() ? form.initiativeDate.trim() : "";
-  return eventDate || initiativeDate || "—";
-}
+import { getApplicationTitle, getApplicationDate } from "~/lib/application";
 
 export const metadata = {
   title: "Report Details",
@@ -82,7 +74,7 @@ export default async function AdminReportDetailPage({
           </div>
           <div>
             <dt className="text-xs font-medium uppercase text-gray-500">Event / initiative date</dt>
-            <dd className="mt-0.5 text-gray-900">{getApplicationDateFromForm(formData)}</dd>
+            <dd className="mt-0.5 text-gray-900">{getApplicationDate(formData)}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium uppercase text-gray-500">Applicant</dt>

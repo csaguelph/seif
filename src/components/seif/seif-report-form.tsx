@@ -3,24 +3,7 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { ReportBudgetUpload, ReportReceiptsUpload } from "~/components/ui/file-upload";
-import { getApplicationTitle } from "~/lib/application";
-
-function getApplicationDate(formData: unknown): string {
-  const form = formData as
-    | { eventDate?: string; initiativeDate?: string }
-    | null
-    | undefined;
-  if (!form) return "—";
-  const eventDate =
-    typeof form.eventDate === "string" && form.eventDate.trim().length > 0
-      ? form.eventDate.trim()
-      : "";
-  const initiativeDate =
-    typeof form.initiativeDate === "string" && form.initiativeDate.trim().length > 0
-      ? form.initiativeDate.trim()
-      : "";
-  return eventDate || initiativeDate || "—";
-}
+import { getApplicationTitle, getApplicationDate } from "~/lib/application";
 
 const SEIF_BUDGET_LINK = "https://www.csaonline.ca/seif";
 
