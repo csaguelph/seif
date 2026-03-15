@@ -54,6 +54,12 @@ export function SeifReportForm({
       setSubmitError("Please upload at least one receipt.");
       return;
     }
+    if (spent > amountAllocatedPreFill) {
+      setSubmitError(
+        `Amount spent ($${spent.toFixed(2)}) cannot exceed the amount allocated ($${amountAllocatedPreFill.toFixed(2)}).`
+      );
+      return;
+    }
     createReport.mutate({
       applicationId,
       amountSpent: spent,
@@ -64,10 +70,15 @@ export function SeifReportForm({
     });
   };
 
+  const spentNum = amountSpent === "" ? NaN : Number(amountSpent);
   const showUnderSpend =
     amountSpent !== "" &&
-    Number.isFinite(Number(amountSpent)) &&
-    Number(amountSpent) < amountAllocatedPreFill;
+    Number.isFinite(spentNum) &&
+    spentNum < amountAllocatedPreFill;
+  const showOverSpend =
+    amountSpent !== "" &&
+    Number.isFinite(spentNum) &&
+    spentNum > amountAllocatedPreFill;
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-8">
@@ -128,6 +139,11 @@ export function SeifReportForm({
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
         </div>
+        {showOverSpend && (
+          <p className="mt-2 text-sm font-medium text-amber-700">
+            Amount spent cannot exceed the amount allocated (${amountAllocatedPreFill.toFixed(2)}).
+          </p>
+        )}
         {showUnderSpend && (
           <div className="mt-4">
             <label className="mb-1 block text-sm font-medium text-gray-700">
