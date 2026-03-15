@@ -88,7 +88,7 @@ export function ReportPipelinePanel({
         <div>
           <p className="font-semibold text-gray-800">Funds returned</p>
           <p className="mt-0.5 text-sm text-gray-600">
-            ${amountToReturn.toFixed(2)} returned.
+            ${amountAllocated.toFixed(2)} allocated · ${totalEligible.toFixed(2)} eligible
           </p>
           {reviewedAt && reviewedByName && (
             <p className="mt-1 text-xs text-gray-500">

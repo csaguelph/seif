@@ -34,8 +34,18 @@ async function buildImageContent(
   const ext = new URL(url).pathname.split(".").pop()?.toLowerCase() ?? "";
 
   if (ext === "pdf") {
-    const res = await fetch(url);
+    const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20 MB
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!res.ok) throw new Error(`Failed to fetch receipt PDF (HTTP ${res.status})`);
+    const contentLength = Number(res.headers.get("content-length") ?? 0);
+    if (contentLength > MAX_PDF_BYTES) throw new Error("Receipt PDF exceeds the 20 MB limit.");
     const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
     return { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}` } };
   }
@@ -265,30 +275,37 @@ export const reportRouter = createTRPCRouter({
       z.object({
         reportId: z.string().cuid(),
         receiptUrl: z.string().url(),
-        receipts: z.array(
-          z.object({
-            storeName: z.string().optional(),
-            items: z.array(
-              z.object({
-                id: z.string(),
-                description: z.string(),
-                amount: z.number().min(0).finite(),
-                eligible: z.boolean(),
-              }),
-            ),
-            subtotal: z.number().min(0).finite().optional(),
-            tax: z.number().min(0).finite().optional(),
-            total: z.number().min(0).finite().optional(),
-          }),
-        ),
+        receipts: z
+          .array(
+            z.object({
+              storeName: z.string().optional(),
+              items: z.array(
+                z.object({
+                  id: z.string(),
+                  description: z.string(),
+                  amount: z.number().min(0).finite(),
+                  eligible: z.boolean(),
+                }),
+              ),
+              subtotal: z.number().min(0).finite().optional(),
+              tax: z.number().min(0).finite().optional(),
+              total: z.number().min(0).finite().optional(),
+            }),
+          )
+          .min(1, "At least one receipt entry is required."),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const report = await ctx.db.seifReport.findUnique({
         where: { id: input.reportId },
-        select: { id: true, receiptReviews: true },
+        select: { id: true, receiptReviews: true, receiptsFilePaths: true },
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+
+      const storedPaths = (report.receiptsFilePaths as string[]) ?? [];
+      if (!storedPaths.includes(input.receiptUrl)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Receipt URL not found in this report." });
+      }
 
       const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
       const entry: ReceiptReview = {
@@ -317,9 +334,14 @@ export const reportRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const report = await ctx.db.seifReport.findUnique({
         where: { id: input.reportId },
-        select: { id: true, receiptReviews: true },
+        select: { id: true, receiptReviews: true, receiptsFilePaths: true },
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+
+      const storedPaths = (report.receiptsFilePaths as string[]) ?? [];
+      if (!storedPaths.includes(input.receiptUrl)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Receipt URL not found in this report." });
+      }
 
       const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
 

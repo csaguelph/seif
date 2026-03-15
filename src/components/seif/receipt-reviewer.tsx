@@ -67,6 +67,27 @@ export function ReceiptReviewer({
   receiptsFilePaths: string[];
   initialReviews: ReceiptReview[];
 }) {
+  if (receiptsFilePaths.length === 0) {
+    return <p className="text-sm text-gray-500">No receipts were submitted with this report.</p>;
+  }
+  return (
+    <ReceiptReviewerInner
+      reportId={reportId}
+      receiptsFilePaths={receiptsFilePaths}
+      initialReviews={initialReviews}
+    />
+  );
+}
+
+function ReceiptReviewerInner({
+  reportId,
+  receiptsFilePaths,
+  initialReviews,
+}: {
+  reportId: string;
+  receiptsFilePaths: string[];
+  initialReviews: ReceiptReview[];
+}) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeReceiptIdx, setActiveReceiptIdx] = useState(0);
   const [reviews, setReviews] = useState<Record<string, ReceiptReview>>(() =>
