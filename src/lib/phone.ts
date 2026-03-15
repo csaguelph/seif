@@ -28,16 +28,20 @@ export function getPhoneInputState(
   const rawValue = normalizePhoneValue(value);
   const formatter = new AsYouType(defaultCountry, metadata);
   const formatted = formatter.input(rawValue);
-  const detectedCountry = formatter.getCountry() ?? defaultCountry;
-  const phoneNumber = formatter.getNumber();
-  const callingCode = phoneNumber?.countryCallingCode
-    ? `+${phoneNumber.countryCallingCode}`
+  const parsed = parsePhoneNumberFromString(rawValue, defaultCountry, metadata);
+  const detectedCountry =
+    formatter.getCountry() ?? parsed?.country ?? defaultCountry;
+  const callingCode = parsed?.countryCallingCode
+    ? `+${parsed.countryCallingCode}`
     : `+${getCountryCallingCode(detectedCountry, metadata)}`;
+  const isValid = parsed?.isValid() ?? false;
 
   return {
     formatted,
     detectedCountry,
     callingCode,
+    e164: isValid ? parsed.number : null,
+    isValid,
   };
 }
 

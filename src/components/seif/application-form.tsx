@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import { authClient } from "~/server/better-auth/client";
@@ -12,7 +18,11 @@ type Org = RouterOutputs["application"]["listOrganizations"][number];
 
 const DRAFT_KEY = "seif-application-draft";
 
-function loadDraft(): { formData: FormData; budgetPath: string } | null {
+function loadDraft(): {
+  formData: FormData;
+  budgetPath: string;
+  phoneInput: string;
+} | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -20,20 +30,25 @@ function loadDraft(): { formData: FormData; budgetPath: string } | null {
     const parsed = JSON.parse(raw) as {
       formData: FormData;
       budgetPath?: string;
+      phoneInput?: string;
     };
     return {
       formData: parsed.formData ?? {},
       budgetPath: parsed.budgetPath ?? "",
+      phoneInput: parsed.phoneInput ?? "",
     };
   } catch {
     return null;
   }
 }
 
-function saveDraft(formData: FormData, budgetPath: string) {
+function saveDraft(formData: FormData, budgetPath: string, phoneInput: string) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, budgetPath }));
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({ formData, budgetPath, phoneInput }),
+    );
   } catch {
     // ignore
   }
@@ -305,10 +320,56 @@ function PhoneNumberField({
   required,
 }: {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (next: { displayValue: string; storedValue: string }) => void;
   required?: boolean;
 }) {
-  const { formatted, detectedCountry, callingCode } = getPhoneInputState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const nextSelectionRef = useRef<number | null>(null);
+  const { detectedCountry, callingCode, isValid } = getPhoneInputState(value);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    input.setCustomValidity(
+      value.length > 0 && !isValid ? "Enter a complete phone number." : "",
+    );
+  }, [isValid, value]);
+
+  useLayoutEffect(() => {
+    if (nextSelectionRef.current == null) return;
+
+    inputRef.current?.setSelectionRange(
+      nextSelectionRef.current,
+      nextSelectionRef.current,
+    );
+    nextSelectionRef.current = null;
+  }, [value]);
+
+  const handleChange = (nextValue: string, selectionStart: number | null) => {
+    const digitIndex = nextValue
+      .slice(0, selectionStart ?? nextValue.length)
+      .replace(/\D/g, "").length;
+    const nextState = getPhoneInputState(nextValue);
+
+    let digitsSeen = 0;
+    let nextSelection = nextState.formatted.length;
+    for (const [index, char] of [...nextState.formatted].entries()) {
+      if (/\d/.test(char)) {
+        digitsSeen += 1;
+      }
+      if (digitsSeen >= digitIndex) {
+        nextSelection = index + 1;
+        break;
+      }
+    }
+
+    nextSelectionRef.current = nextSelection;
+    onChange({
+      displayValue: nextState.formatted,
+      storedValue: nextState.e164 ?? "",
+    });
+  };
 
   return (
     <div>
@@ -320,13 +381,14 @@ function PhoneNumberField({
           <span className="font-medium">{callingCode}</span>
         </div>
         <input
+          ref={inputRef}
           type="tel"
           inputMode="tel"
           autoComplete="tel"
           className="min-w-0 flex-1 border-0 px-3 py-2 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0"
-          value={formatted}
+          value={value}
           onChange={(e) =>
-            onChange(getPhoneInputState(e.target.value).formatted)
+            handleChange(e.target.value, e.target.selectionStart)
           }
           placeholder="(519) 555-1234"
           required={required}
@@ -341,6 +403,7 @@ export function ApplicationForm() {
   const { data: session } = authClient.useSession();
   const [formData, setFormData] = useState<FormData>({});
   const [budgetPath, setBudgetPath] = useState<string>("");
+  const [phoneInput, setPhoneInput] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -352,15 +415,18 @@ export function ApplicationForm() {
   useEffect(() => {
     if (draftRestored) return;
     const draft = loadDraft();
-    if (draft && (Object.keys(draft.formData).length > 0 || draft.budgetPath)) {
-      const draftPhone = draft.formData.phone;
-      setFormData({
-        ...draft.formData,
-        ...(typeof draftPhone === "string"
-          ? { phone: getPhoneInputState(draftPhone).formatted }
-          : {}),
-      });
+    if (
+      draft &&
+      (Object.keys(draft.formData).length > 0 ||
+        draft.budgetPath ||
+        draft.phoneInput)
+    ) {
+      setFormData(draft.formData);
       setBudgetPath(draft.budgetPath);
+      setPhoneInput(
+        draft.phoneInput ||
+          getPhoneInputState((draft.formData.phone as string) ?? "").formatted,
+      );
     }
     setDraftRestored(true);
   }, [draftRestored]);
@@ -369,10 +435,10 @@ export function ApplicationForm() {
   useEffect(() => {
     if (!draftRestored) return;
     const t = setTimeout(() => {
-      saveDraft(formData, budgetPath);
+      saveDraft(formData, budgetPath, phoneInput);
     }, 500);
     return () => clearTimeout(t);
-  }, [formData, budgetPath, draftRestored]);
+  }, [formData, budgetPath, draftRestored, phoneInput]);
 
   const { data: organizations = [], isLoading: orgsLoading } =
     api.application.listOrganizations.useQuery();
@@ -397,7 +463,7 @@ export function ApplicationForm() {
     setSubmitError(null);
 
     if (!session?.user) {
-      saveDraft(formData, budgetPath);
+      saveDraft(formData, budgetPath, phoneInput);
       void authClient.signIn.social({
         provider: "microsoft",
         callbackURL: "/apply",
@@ -416,6 +482,10 @@ export function ApplicationForm() {
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       setSubmitError("Please enter a valid amount requested.");
+      return;
+    }
+    if (typeof formData.phone !== "string" || formData.phone.length === 0) {
+      setSubmitError("Please enter a valid phone number.");
       return;
     }
     if (!budgetPath) {
@@ -494,8 +564,11 @@ export function ApplicationForm() {
           <div>
             <Label required>Phone Number</Label>
             <PhoneNumberField
-              value={(formData.phone as string) ?? ""}
-              onChange={(value) => update("phone", value)}
+              value={phoneInput}
+              onChange={({ displayValue, storedValue }) => {
+                setPhoneInput(displayValue);
+                update("phone", storedValue);
+              }}
               required
             />
           </div>
