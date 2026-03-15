@@ -431,7 +431,6 @@ export function ReportReceiptsUpload({
         resolve(null);
         return;
       }
-      setError(null);
       const formData = new FormData();
       formData.set("file", file);
       const xhr = new XMLHttpRequest();
