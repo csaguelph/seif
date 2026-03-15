@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, AlertTriangle, ArrowRight } from "lucide-react";
+import { Check, AlertTriangle, ArrowRight, RotateCcw } from "lucide-react";
 import { api } from "~/trpc/react";
 import { formatTorontoDateTime } from "~/lib/date";
 import { calcAllReceiptsEligibleTotal, migrateReview } from "~/lib/receipt-eligible";
@@ -28,6 +28,7 @@ export function ReportPipelinePanel({
   const router = useRouter();
   const utils = api.useUtils();
   const [, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Re-fetches whenever the ReceiptReviewer invalidates this query after a save
   const { data: latestReport } = api.report.getById.useQuery(
@@ -56,7 +57,10 @@ export function ReportPipelinePanel({
   };
 
   const finalizeReview = api.report.finalizeReview.useMutation({ onSuccess: refresh });
-  const confirmReturned = api.report.confirmFundsReturned.useMutation({ onSuccess: refresh });
+  const confirmReturned = api.report.confirmFundsReturned.useMutation({
+    onSuccess: () => { setConfirmOpen(false); refresh(); },
+  });
+  const undoReturned = api.report.undoFundsReturned.useMutation({ onSuccess: refresh });
 
   // -------------------------------------------------------------------------
   // Completed states
@@ -85,7 +89,7 @@ export function ReportPipelinePanel({
     return (
       <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-5">
         <Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-500" />
-        <div>
+        <div className="flex-1">
           <p className="font-semibold text-gray-800">Funds returned</p>
           <p className="mt-0.5 text-sm text-gray-600">
             ${amountAllocated.toFixed(2)} allocated · ${totalEligible.toFixed(2)} eligible
@@ -95,7 +99,18 @@ export function ReportPipelinePanel({
               Confirmed {formatTorontoDateTime(reviewedAt)} by {reviewedByName}
             </p>
           )}
+          {undoReturned.error && (
+            <p className="mt-2 text-sm text-red-600">{undoReturned.error.message}</p>
+          )}
         </div>
+        <button
+          onClick={() => undoReturned.mutate({ id: reportId })}
+          disabled={undoReturned.isPending}
+          className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {undoReturned.isPending ? "Undoing…" : "Undo"}
+        </button>
       </div>
     );
   }
@@ -106,6 +121,7 @@ export function ReportPipelinePanel({
 
   if (status === "PENDING_FUNDS_RETURN") {
     return (
+      <>
       <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 shadow-sm">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600" />
@@ -134,15 +150,47 @@ export function ReportPipelinePanel({
             <p className="text-sm text-red-600">{confirmReturned.error.message}</p>
           )}
           <button
-            onClick={() => confirmReturned.mutate({ id: reportId })}
-            disabled={confirmReturned.isPending}
-            className="ml-auto flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+            onClick={() => setConfirmOpen(true)}
+            className="ml-auto flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
           >
-            {confirmReturned.isPending ? "Saving…" : "Confirm funds returned"}
+            Confirm funds returned
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </section>
+
+      {/* Confirm modal */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">Confirm funds returned</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure ${amountToReturn.toFixed(2)} has been returned? This will close the
+              report. You can undo this afterwards if needed.
+            </p>
+            {confirmReturned.error && (
+              <p className="mt-2 text-sm text-red-600">{confirmReturned.error.message}</p>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                disabled={confirmReturned.isPending}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmReturned.mutate({ id: reportId })}
+                disabled={confirmReturned.isPending}
+                className="flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+              >
+                {confirmReturned.isPending ? "Saving…" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 

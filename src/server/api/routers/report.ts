@@ -400,6 +400,31 @@ export const reportRouter = createTRPCRouter({
     }),
 
   /**
+   * Undo a funds-returned confirmation.
+   * Moves status from FUNDS_RETURNED → PENDING_FUNDS_RETURN.
+   */
+  undoFundsReturned: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await ctx.db.seifReport.findUnique({
+        where: { id: input.id },
+        select: { id: true, status: true },
+      });
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+      if (report.status !== "FUNDS_RETURNED") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Report is not in funds-returned state.",
+        });
+      }
+
+      return ctx.db.seifReport.update({
+        where: { id: input.id },
+        data: { status: "PENDING_FUNDS_RETURN", reviewedAt: new Date(), reviewedById: ctx.session.user.id },
+      });
+    }),
+
+  /**
    * Confirm that the outstanding funds have been returned.
    * Moves status from PENDING_FUNDS_RETURN → FUNDS_RETURNED.
    */
