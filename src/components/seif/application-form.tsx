@@ -357,14 +357,14 @@ function PhoneNumberField({
     for (const [index, char] of [...nextState.formatted].entries()) {
       if (/\d/.test(char)) {
         digitsSeen += 1;
-      }
-      if (digitsSeen >= digitIndex) {
-        nextSelection = index + 1;
-        break;
+        if (digitsSeen >= digitIndex) {
+          nextSelection = index + 1;
+          break;
+        }
       }
     }
 
-    nextSelectionRef.current = nextSelection;
+    nextSelectionRef.current = digitIndex === 0 ? 0 : nextSelection;
     onChange({
       displayValue: nextState.formatted,
       storedValue: nextState.e164 ?? "",

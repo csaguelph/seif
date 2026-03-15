@@ -57,7 +57,7 @@ export function formatStoredPhoneNumber(
     return getPhoneInputState(rawValue, defaultCountry).formatted || rawValue;
   }
 
-  return rawValue.startsWith("+") || parsed.country !== defaultCountry
+  return parsed.country !== defaultCountry
     ? parsed.formatInternational()
     : parsed.formatNational();
 }
