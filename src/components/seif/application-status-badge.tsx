@@ -6,6 +6,14 @@ const statusClasses: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-800",
 };
 
+const statusLabels: Record<string, string> = {
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  UNDER_REVIEW: "Under Review",
+  SUBMITTED: "Submitted",
+  DRAFT: "Draft",
+};
+
 export function ApplicationStatusBadge({
   status,
 }: {
@@ -17,7 +25,7 @@ export function ApplicationStatusBadge({
         statusClasses[status] ?? "bg-gray-100 text-gray-800"
       }`}
     >
-      {status}
+      {statusLabels[status] ?? status}
     </span>
   );
 }
