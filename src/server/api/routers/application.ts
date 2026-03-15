@@ -12,8 +12,7 @@ const optionalTrimmedString = z
   .optional();
 
 const normalizeNullableString = (value: string | null | undefined) => value ?? null;
-const isReviewableStatus = (status: string) =>
-  status === "SUBMITTED" || status === "UNDER_REVIEW";
+const reviewableStatuses: Array<"SUBMITTED" | "UNDER_REVIEW"> = ["SUBMITTED", "UNDER_REVIEW"];
 
 export const applicationRouter = createTRPCRouter({
   listOrganizations: publicProcedure.query(async ({ ctx }) => {
@@ -74,20 +73,11 @@ export const applicationRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.seifApplication.findUniqueOrThrow({
-        where: { id: input.id },
-        select: { status: true },
-      });
-
-      if (!isReviewableStatus(existing.status)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Only submitted or under-review applications can be approved.",
-        });
-      }
-
-      return ctx.db.seifApplication.update({
-        where: { id: input.id },
+      const result = await ctx.db.seifApplication.updateMany({
+        where: {
+          id: input.id,
+          status: { in: reviewableStatuses },
+        },
         data: {
           status: "APPROVED",
           reviewerComments: normalizeNullableString(input.comments),
@@ -96,6 +86,15 @@ export const applicationRouter = createTRPCRouter({
           reviewedAt: new Date(),
         },
       });
+
+      if (result.count === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or under-review applications can be approved.",
+        });
+      }
+
+      return { success: true };
     }),
 
   reject: adminProcedure
@@ -106,20 +105,11 @@ export const applicationRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.seifApplication.findUniqueOrThrow({
-        where: { id: input.id },
-        select: { status: true },
-      });
-
-      if (!isReviewableStatus(existing.status)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Only submitted or under-review applications can be denied.",
-        });
-      }
-
-      return ctx.db.seifApplication.update({
-        where: { id: input.id },
+      const result = await ctx.db.seifApplication.updateMany({
+        where: {
+          id: input.id,
+          status: { in: reviewableStatuses },
+        },
         data: {
           status: "REJECTED",
           denialReason: input.reason,
@@ -128,5 +118,14 @@ export const applicationRouter = createTRPCRouter({
           reviewedAt: new Date(),
         },
       });
+
+      if (result.count === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or under-review applications can be denied.",
+        });
+      }
+
+      return { success: true };
     }),
 });
