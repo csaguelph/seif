@@ -2,6 +2,7 @@
 
 import { GitCommit } from "lucide-react";
 import Link from "next/link";
+import { formatTorontoYear } from "~/lib/date";
 
 export function Footer() {
   const gitCommit = process.env.NEXT_PUBLIC_GIT_COMMIT_SHA;
@@ -11,7 +12,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="text-center text-gray-600 text-sm sm:text-left">
-            <p>© {new Date().getFullYear()} Central Student Association</p>
+            <p>© {formatTorontoYear(new Date())} Central Student Association</p>
             {gitCommit && (
               <a
                 href={`https://github.com/csaguelph/voting/commit/${gitCommit}`}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatTorontoDate } from "~/lib/date";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 
@@ -62,7 +63,7 @@ export function ApplicationsTable() {
           {applications.map((app: RouterOutputs["application"]["list"][number]) => (
             <tr key={app.id} className="hover:bg-gray-50">
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                {new Date(app.submittedAt).toLocaleDateString()}
+                {formatTorontoDate(app.submittedAt)}
               </td>
               <td className="px-4 py-3 text-sm text-gray-900">
                 {app.organization.name}

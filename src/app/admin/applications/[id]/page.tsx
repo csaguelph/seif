@@ -5,6 +5,7 @@ import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
 import { ApplicationDecisionPanel } from "~/components/seif/application-decision-panel";
+import { formatTorontoDateTime } from "~/lib/date";
 
 export const metadata = {
   title: "Application Details",
@@ -45,7 +46,7 @@ export default async function ApplicationDetailPage({
             Application — {application.organization.name}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Submitted {new Date(application.submittedAt).toLocaleString()} · $
+            Submitted {formatTorontoDateTime(application.submittedAt)} · $
             {Number(application.amountRequested).toFixed(2)} requested ·{" "}
             {application.status}
           </p>
@@ -154,7 +155,7 @@ export default async function ApplicationDetailPage({
                     Reviewed at
                   </dt>
                   <dd className="mt-0.5 text-gray-900">
-                    {new Date(application.reviewedAt).toLocaleString()}
+                    {formatTorontoDateTime(application.reviewedAt)}
                   </dd>
                 </div>
               )}
