@@ -9,6 +9,8 @@ const DENIAL_REASONS = [
   "Issue with budget",
   "Fundraising event",
 ] as const;
+const isReviewableStatus = (status: ApplicationDecisionPanelProps["status"]) =>
+  status === "SUBMITTED" || status === "UNDER_REVIEW";
 
 type ApplicationDecisionPanelProps = {
   applicationId: string;
@@ -47,6 +49,7 @@ export function ApplicationDecisionPanel({
     onSuccess: refreshApplication,
   });
 
+  const isReviewable = isReviewableStatus(status);
   const activeMutation = approveMutation.isPending || rejectMutation.isPending || isRefreshing;
 
   const handleApprove = () => {
@@ -71,6 +74,11 @@ export function ApplicationDecisionPanel({
         <p className="mt-1 text-sm text-gray-600">
           Current status: <span className="font-medium text-gray-900">{status}</span>
         </p>
+        {!isReviewable && (
+          <p className="mt-2 text-sm text-amber-700">
+            Only submitted or under-review applications can be accepted or denied.
+          </p>
+        )}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -102,10 +110,10 @@ export function ApplicationDecisionPanel({
             placeholder="Optional conditions, such as limits on how funds may be used."
           />
 
-          <button
-            type="button"
-            onClick={handleApprove}
-            disabled={activeMutation}
+            <button
+              type="button"
+              onClick={handleApprove}
+            disabled={activeMutation || !isReviewable}
             className="mt-4 inline-flex rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {approveMutation.isPending ? "Accepting..." : "Accept application"}
@@ -125,7 +133,7 @@ export function ApplicationDecisionPanel({
                   key={reason}
                   type="button"
                   onClick={() => setDenialReason(reason)}
-                  disabled={activeMutation}
+                  disabled={activeMutation || !isReviewable}
                   className={`rounded-full border px-3 py-1.5 text-sm transition ${
                     isActive
                       ? "border-rose-600 bg-rose-600 text-white"
@@ -150,10 +158,10 @@ export function ApplicationDecisionPanel({
             placeholder="Select a common reason above or write a custom denial reason."
           />
 
-          <button
-            type="button"
-            onClick={handleReject}
-            disabled={activeMutation || denialReason.trim().length === 0}
+            <button
+              type="button"
+              onClick={handleReject}
+            disabled={activeMutation || !isReviewable || denialReason.trim().length === 0}
             className="mt-4 inline-flex rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {rejectMutation.isPending ? "Denying..." : "Deny application"}

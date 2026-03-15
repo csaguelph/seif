@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, adminProcedure, publicProcedure } from "~/server/api/trpc";
@@ -11,6 +12,8 @@ const optionalTrimmedString = z
   .optional();
 
 const normalizeNullableString = (value: string | null | undefined) => value ?? null;
+const isReviewableStatus = (status: string) =>
+  status === "SUBMITTED" || status === "UNDER_REVIEW";
 
 export const applicationRouter = createTRPCRouter({
   listOrganizations: publicProcedure.query(async ({ ctx }) => {
@@ -71,6 +74,18 @@ export const applicationRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.seifApplication.findUniqueOrThrow({
+        where: { id: input.id },
+        select: { status: true },
+      });
+
+      if (!isReviewableStatus(existing.status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or under-review applications can be approved.",
+        });
+      }
+
       return ctx.db.seifApplication.update({
         where: { id: input.id },
         data: {
@@ -91,6 +106,18 @@ export const applicationRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.seifApplication.findUniqueOrThrow({
+        where: { id: input.id },
+        select: { status: true },
+      });
+
+      if (!isReviewableStatus(existing.status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only submitted or under-review applications can be denied.",
+        });
+      }
+
       return ctx.db.seifApplication.update({
         where: { id: input.id },
         data: {
