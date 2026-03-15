@@ -1,9 +1,10 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { TRPCError } from "@trpc/server";
 import Link from "next/link";
 import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
+import { getSession } from "~/server/better-auth/server";
 import { ApplicationForm } from "~/components/seif/application-form";
 
 export const metadata = {
@@ -16,6 +17,9 @@ export default async function EditApplicationPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await getSession();
+  if (!session?.user) redirect("/api/auth/signin");
+
   const { id } = await params;
   const ctx = await createTRPCContext({ headers: await headers() });
   const caller = createCaller(ctx);

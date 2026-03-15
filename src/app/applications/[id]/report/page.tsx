@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
+import { getSession } from "~/server/better-auth/server";
 import { SeifReportForm } from "~/components/seif/seif-report-form";
 
 export const metadata = {
@@ -16,6 +17,9 @@ export default async function ReportApplicationPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await getSession();
+  if (!session?.user) redirect("/api/auth/signin");
+
   const { id } = await params;
   const ctx = await createTRPCContext({ headers: await headers() });
   const caller = createCaller(ctx);

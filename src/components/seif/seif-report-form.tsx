@@ -56,7 +56,6 @@ export function SeifReportForm({
     }
     createReport.mutate({
       applicationId,
-      amountAllocated: amountAllocatedPreFill,
       amountSpent: spent,
       underSpendExplanation: underSpendExplanation.trim() || undefined,
       descriptionActivities: descriptionActivities.trim(),

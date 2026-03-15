@@ -32,7 +32,6 @@ export const reportRouter = createTRPCRouter({
     .input(
       z.object({
         applicationId: z.string().cuid(),
-        amountAllocated: z.number().min(0).finite(),
         amountSpent: z.number().min(0).finite(),
         underSpendExplanation: z.string().trim().optional(),
         descriptionActivities: z.string().trim().min(1, "Description & activities is required."),
@@ -61,18 +60,31 @@ export const reportRouter = createTRPCRouter({
           message: "A report has already been submitted for this application.",
         });
       }
-      return ctx.db.seifReport.create({
-        data: {
-          applicationId: input.applicationId,
-          amountAllocated: input.amountAllocated,
-          amountSpent: input.amountSpent,
-          underSpendExplanation: input.underSpendExplanation ?? null,
-          descriptionActivities: input.descriptionActivities,
-          finalBudgetFilePath: input.finalBudgetFilePath,
-          receiptsFilePaths: input.receiptsFilePaths as unknown as object,
-          submittedById: ctx.session.user.id,
-        },
-      });
+      const amountAllocated =
+        app.amountApproved != null ? Number(app.amountApproved) : Number(app.amountRequested);
+      try {
+        return await ctx.db.seifReport.create({
+          data: {
+            applicationId: input.applicationId,
+            amountAllocated,
+            amountSpent: input.amountSpent,
+            underSpendExplanation: input.underSpendExplanation ?? null,
+            descriptionActivities: input.descriptionActivities,
+            finalBudgetFilePath: input.finalBudgetFilePath,
+            receiptsFilePaths: input.receiptsFilePaths as unknown as object,
+            submittedById: ctx.session.user.id,
+          },
+        });
+      } catch (err) {
+        const prismaError = err as { code?: string };
+        if (prismaError.code === "P2002") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "A report has already been submitted for this application.",
+          });
+        }
+        throw err;
+      }
     }),
 
   /** List all reports (admin). */
