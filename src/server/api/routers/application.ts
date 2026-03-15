@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { createTRPCRouter, adminProcedure, publicProcedure } from "~/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "~/server/api/trpc";
 
 const formDataSchema = z.record(z.unknown());
 
@@ -28,6 +33,32 @@ export const applicationRouter = createTRPCRouter({
           budgetFilePath: input.budgetFilePath ?? null,
           formData: input.formData as object,
           submittedById: ctx.session?.user?.id ?? null,
+        },
+      });
+    }),
+
+  listMine: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.seifApplication.findMany({
+      where: {
+        submittedById: ctx.session.user.id,
+      },
+      orderBy: { submittedAt: "desc" },
+      include: {
+        organization: true,
+      },
+    });
+  }),
+
+  getMineById: protectedProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.seifApplication.findFirstOrThrow({
+        where: {
+          id: input.id,
+          submittedById: ctx.session.user.id,
+        },
+        include: {
+          organization: true,
         },
       });
     }),

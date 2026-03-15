@@ -29,7 +29,7 @@ export const APPLICATION_STATUS_META = {
 } as const;
 
 export type ApplicationStatus = keyof typeof APPLICATION_STATUS_META;
-export type ApplicationFormData = Record<string, unknown>;
+export type ApplicationFormData = unknown;
 
 export type FutureApplicationAction = {
   id: "resubmit" | "report" | "documents";
@@ -78,12 +78,25 @@ export function getStatusBadgeClassName(status: ApplicationStatus) {
   );
 }
 
+function asFormRecord(formData: ApplicationFormData) {
+  if (!formData || typeof formData !== "object" || Array.isArray(formData)) {
+    return null;
+  }
+
+  return formData as Record<string, unknown>;
+}
+
 export function readString(
   formData: ApplicationFormData,
   ...keys: readonly string[]
 ) {
+  const record = asFormRecord(formData);
+  if (!record) {
+    return null;
+  }
+
   for (const key of keys) {
-    const value = formData[key];
+    const value = record[key];
     if (typeof value === "string" && value.trim().length > 0) {
       return value.trim();
     }
@@ -96,7 +109,12 @@ export function readStringArray(
   formData: ApplicationFormData,
   key: string,
 ) {
-  const value = formData[key];
+  const record = asFormRecord(formData);
+  if (!record) {
+    return [];
+  }
+
+  const value = record[key];
   if (!Array.isArray(value)) {
     return [];
   }
@@ -108,7 +126,12 @@ export function readStringRecord(
   formData: ApplicationFormData,
   key: string,
 ) {
-  const value = formData[key];
+  const record = asFormRecord(formData);
+  if (!record) {
+    return {};
+  }
+
+  const value = record[key];
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }

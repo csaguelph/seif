@@ -6,21 +6,21 @@ import { api } from "~/trpc/server";
 
 export const metadata = {
   title: "Application Details",
-  description: "SEIF application details",
+  description: "Review your submitted SEIF application.",
 };
 
-export default async function ApplicationDetailPage({
+export default async function DashboardApplicationDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const session = await getSession();
-  if (session?.user?.role !== "ADMIN") {
-    redirect("/");
+  if (!session?.user) {
+    redirect("/api/auth/signin");
   }
 
   const { id } = await params;
-  const application = await api.application.getById({ id }).catch(() => null);
+  const application = await api.application.getMineById({ id }).catch(() => null);
   if (!application) {
     notFound();
   }
@@ -28,8 +28,9 @@ export default async function ApplicationDetailPage({
   return (
     <ApplicationDetailView
       application={application}
-      backHref="/admin"
-      backLabel="← Back to applications"
+      backHref="/dashboard"
+      backLabel="← Back to my applications"
+      showActionRoadmap
     />
   );
 }
