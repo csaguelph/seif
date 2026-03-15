@@ -49,7 +49,12 @@ export function ApplicationDecisionPanel({
   });
 
   const isReviewable = isReviewableStatus(status);
+  const isReviewed = status === "APPROVED" || status === "REJECTED";
   const activeMutation = approveMutation.isPending || rejectMutation.isPending || isRefreshing;
+
+  if (isReviewed) {
+    return null;
+  }
 
   const handleApprove = () => {
     approveMutation.mutate({
@@ -93,7 +98,8 @@ export function ApplicationDecisionPanel({
             value={comments}
             onChange={(event) => setComments(event.target.value)}
             rows={4}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            disabled={!isReviewable}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
             placeholder="Add comments for the applicant or record."
           />
 
@@ -105,7 +111,8 @@ export function ApplicationDecisionPanel({
             value={conditions}
             onChange={(event) => setConditions(event.target.value)}
             rows={4}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            disabled={!isReviewable}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
             placeholder="Optional conditions, such as limits on how funds may be used."
           />
 
@@ -153,7 +160,8 @@ export function ApplicationDecisionPanel({
             value={denialReason}
             onChange={(event) => setDenialReason(event.target.value)}
             rows={5}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-200"
+            disabled={!isReviewable}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
             placeholder="Select a common reason above or write a custom denial reason."
           />
 
