@@ -1,37 +1,53 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
 import { authClient } from "~/server/better-auth/client";
 import { ChevronDown } from "lucide-react";
 import { BudgetFileUpload } from "~/components/ui/file-upload";
+import { getFlagEmoji, getPhoneInputState } from "~/lib/phone";
 
 type Org = RouterOutputs["application"]["listOrganizations"][number];
 
 const DRAFT_KEY = "seif-application-draft";
 
-function loadDraft(): { formData: FormData; budgetPath: string } | null {
+function loadDraft(): {
+  formData: FormData;
+  budgetPath: string;
+  phoneInput: string;
+} | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { formData: FormData; budgetPath?: string };
+    const parsed = JSON.parse(raw) as {
+      formData: FormData;
+      budgetPath?: string;
+      phoneInput?: string;
+    };
     return {
       formData: parsed.formData ?? {},
       budgetPath: parsed.budgetPath ?? "",
+      phoneInput: parsed.phoneInput ?? "",
     };
   } catch {
     return null;
   }
 }
 
-function saveDraft(formData: FormData, budgetPath: string) {
+function saveDraft(formData: FormData, budgetPath: string, phoneInput: string) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(
       DRAFT_KEY,
-      JSON.stringify({ formData, budgetPath })
+      JSON.stringify({ formData, budgetPath, phoneInput }),
     );
   } catch {
     // ignore
@@ -68,15 +84,42 @@ const PREAMBLE = `NEW! Effective 1/15/2025, the yearly limit for SEIF has double
 Requests for financial support may cover, but are not limited to, promotion, technical assistance, event supplies, and transportation. SEIF is not granted for operational costs, salaries, or alcohol costs. Priority goes to applications that will have the greatest impact on the undergraduate population at the University of Guelph. In fairness to all organizations, no group will be awarded more than $1,000 in any fiscal year (May-April). In order to qualify for future funding, recipients of SEIF funds must complete the SEIF Funding Report within two weeks of the event or initiative. Thank you for reading! If you have any questions regarding the completion of this form, please consult our website or reach out via email at csaclubs@uoguelph.ca.`;
 
 const TERMS_STATEMENTS: { key: string; text: string }[] = [
-  { key: "termsRead", text: "I have read the relevant policy, rules and guidelines regarding the SEIF process (available on the CSA website)." },
-  { key: "termsTemplate", text: "I understand that by not following the directions laid out or submitting a budget without using the provided template that my application will not be considered." },
-  { key: "termsReturn", text: "I understand that I must return any funds that are unused, and must return all funds if the event is cancelled." },
-  { key: "termsReport", text: "I understand that in order to qualify for future funding, recipients of SEIF funding must submit the report to the CSA within two weeks of the event or initiative (or within two weeks of receiving notification of funding for previous events/initiatives)." },
-  { key: "termsOnlyForm", text: "I acknowledge that only information provided in this form will be considered for SEIF assessment unless indicated otherwise." },
-  { key: "termsNoReconsideration", text: "I understand that reconsideration on the ground of providing more information after the application has been assessed will not be entertained." },
-  { key: "termsOrgIneligible", text: "I understand that failure to follow the guidelines set in the SEIF process or by submitting false information my organization will not be eligible to apply for SEIF in the future." },
-  { key: "termsApplicantIneligible", text: "I understand that failure to follow the guidelines set in the SEIF process or by submitting false information I (the individual applying) will not be eligible to apply for SEIF in the future for this organization or any other organization in the future." },
-  { key: "termsCertify", text: "I acknowledge that by signing this form, it certifies that all information provided in this form is true and I understand the terms and conditions of the SEIF Process." },
+  {
+    key: "termsRead",
+    text: "I have read the relevant policy, rules and guidelines regarding the SEIF process (available on the CSA website).",
+  },
+  {
+    key: "termsTemplate",
+    text: "I understand that by not following the directions laid out or submitting a budget without using the provided template that my application will not be considered.",
+  },
+  {
+    key: "termsReturn",
+    text: "I understand that I must return any funds that are unused, and must return all funds if the event is cancelled.",
+  },
+  {
+    key: "termsReport",
+    text: "I understand that in order to qualify for future funding, recipients of SEIF funding must submit the report to the CSA within two weeks of the event or initiative (or within two weeks of receiving notification of funding for previous events/initiatives).",
+  },
+  {
+    key: "termsOnlyForm",
+    text: "I acknowledge that only information provided in this form will be considered for SEIF assessment unless indicated otherwise.",
+  },
+  {
+    key: "termsNoReconsideration",
+    text: "I understand that reconsideration on the ground of providing more information after the application has been assessed will not be entertained.",
+  },
+  {
+    key: "termsOrgIneligible",
+    text: "I understand that failure to follow the guidelines set in the SEIF process or by submitting false information my organization will not be eligible to apply for SEIF in the future.",
+  },
+  {
+    key: "termsApplicantIneligible",
+    text: "I understand that failure to follow the guidelines set in the SEIF process or by submitting false information I (the individual applying) will not be eligible to apply for SEIF in the future for this organization or any other organization in the future.",
+  },
+  {
+    key: "termsCertify",
+    text: "I acknowledge that by signing this form, it certifies that all information provided in this form is true and I understand the terms and conditions of the SEIF Process.",
+  },
 ];
 
 function Label({
@@ -116,7 +159,7 @@ function SearchableOrganizationSelect({
   const selectedOrg = organizations.find((o) => o.id === value);
   const filtered = query.trim()
     ? organizations.filter((o) =>
-        o.name.toLowerCase().includes(query.toLowerCase())
+        o.name.toLowerCase().includes(query.toLowerCase()),
       )
     : organizations;
 
@@ -135,7 +178,10 @@ function SearchableOrganizationSelect({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -179,18 +225,27 @@ function SearchableOrganizationSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      <input type="hidden" name="organizationId" value={value} required={required} />
+      <input
+        type="hidden"
+        name="organizationId"
+        value={value}
+        required={required}
+      />
       <div
         role="combobox"
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls="org-listbox"
-        aria-activedescendant={filtered[highlightIndex] ? `org-option-${filtered[highlightIndex].id}` : undefined}
-        className="flex w-full items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-gray-900 shadow-sm focus-within:border-indigo-500 focus-within:outline-none focus-within:ring-1 focus-within:ring-indigo-500"
+        aria-activedescendant={
+          filtered[highlightIndex]
+            ? `org-option-${filtered[highlightIndex].id}`
+            : undefined
+        }
+        className="flex w-full items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-gray-900 shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:outline-none"
       >
         <input
           type="text"
-          value={open ? query : selectedOrg?.name ?? ""}
+          value={open ? query : (selectedOrg?.name ?? "")}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
@@ -218,7 +273,9 @@ function SearchableOrganizationSelect({
           className="shrink-0 text-gray-400 hover:text-gray-600"
           aria-label={open ? "Close list" : "Open list"}
         >
-          <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+          <ChevronDown
+            className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
+          />
         </button>
       </div>
       {open && (
@@ -229,7 +286,9 @@ function SearchableOrganizationSelect({
           className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-gray-500">No organizations match</li>
+            <li className="px-3 py-2 text-sm text-gray-500">
+              No organizations match
+            </li>
           ) : (
             filtered.map((org, i) => (
               <li
@@ -255,6 +314,92 @@ function SearchableOrganizationSelect({
   );
 }
 
+function PhoneNumberField({
+  value,
+  onChange,
+  required,
+}: {
+  value: string;
+  onChange: (next: { displayValue: string; storedValue: string }) => void;
+  required?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const nextSelectionRef = useRef<number | null>(null);
+  const { detectedCountry, callingCode, isValid } = getPhoneInputState(value);
+  const showCodeInBadge = !value.trimStart().startsWith("+");
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    input.setCustomValidity(
+      value.length > 0 && !isValid ? "Enter a complete phone number." : "",
+    );
+  }, [isValid, value]);
+
+  useLayoutEffect(() => {
+    if (nextSelectionRef.current == null) return;
+
+    inputRef.current?.setSelectionRange(
+      nextSelectionRef.current,
+      nextSelectionRef.current,
+    );
+    nextSelectionRef.current = null;
+  }, [value]);
+
+  const handleChange = (nextValue: string, selectionStart: number | null) => {
+    const digitIndex = nextValue
+      .slice(0, selectionStart ?? nextValue.length)
+      .replace(/\D/g, "").length;
+    const nextState = getPhoneInputState(nextValue);
+
+    let digitsSeen = 0;
+    let nextSelection = nextState.formatted.length;
+    for (const [index, char] of [...nextState.formatted].entries()) {
+      if (/\d/.test(char)) {
+        digitsSeen += 1;
+        if (digitsSeen >= digitIndex) {
+          nextSelection = index + 1;
+          break;
+        }
+      }
+    }
+
+    nextSelectionRef.current = digitIndex === 0 ? 0 : nextSelection;
+    onChange({
+      displayValue: nextState.formatted,
+      storedValue: nextState.e164 ?? "",
+    });
+  };
+
+  return (
+    <div>
+      <div className="flex overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+        <div className="flex shrink-0 items-center gap-2 border-r border-gray-300 bg-gray-50 px-3 text-sm text-gray-700">
+          <span aria-hidden className="text-lg leading-none">
+            {getFlagEmoji(detectedCountry)}
+          </span>
+          {showCodeInBadge && <span className="font-medium">{callingCode}</span>}
+        </div>
+        <input
+          ref={inputRef}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          className="min-w-0 flex-1 border-0 px-3 py-2 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0"
+          value={value}
+          onChange={(e) =>
+            handleChange(e.target.value, e.target.selectionStart)
+          }
+          placeholder="(519) 555-1234"
+          required={required}
+          aria-label="Phone Number"
+        />
+      </div>
+    </div>
+  );
+}
+
 export type EditApplicationData = {
   id: string;
   formData: Record<string, unknown>;
@@ -271,6 +416,11 @@ export function ApplicationForm({
   const { data: session } = authClient.useSession();
   const [formData, setFormData] = useState<FormData>(editApplication?.formData ?? {});
   const [budgetPath, setBudgetPath] = useState<string>(editApplication?.budgetFilePath ?? "");
+  const [phoneInput, setPhoneInput] = useState(() =>
+    editApplication?.formData?.phone != null
+      ? getPhoneInputState(String(editApplication.formData.phone)).formatted
+      : ""
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -286,9 +436,18 @@ export function ApplicationForm({
       return;
     }
     const draft = loadDraft();
-    if (draft && (Object.keys(draft.formData).length > 0 || draft.budgetPath)) {
+    if (
+      draft &&
+      (Object.keys(draft.formData).length > 0 ||
+        draft.budgetPath ||
+        draft.phoneInput)
+    ) {
       setFormData(draft.formData);
       setBudgetPath(draft.budgetPath);
+      setPhoneInput(
+        draft.phoneInput ||
+          getPhoneInputState((draft.formData.phone as string) ?? "").formatted,
+      );
     }
     setDraftRestored(true);
   }, [draftRestored, editApplication]);
@@ -297,10 +456,10 @@ export function ApplicationForm({
   useEffect(() => {
     if (!draftRestored || editApplication) return;
     const t = setTimeout(() => {
-      saveDraft(formData, budgetPath);
+      saveDraft(formData, budgetPath, phoneInput);
     }, 500);
     return () => clearTimeout(t);
-  }, [formData, budgetPath, draftRestored, editApplication]);
+  }, [formData, budgetPath, draftRestored, editApplication, phoneInput]);
 
   const { data: organizations = [], isLoading: orgsLoading } =
     api.application.listOrganizations.useQuery();
@@ -332,12 +491,14 @@ export function ApplicationForm({
     setSubmitError(null);
 
     if (!session?.user) {
-      saveDraft(formData, budgetPath);
+      saveDraft(formData, budgetPath, phoneInput);
       void authClient.signIn.social({
         provider: "microsoft",
         callbackURL: "/apply",
       });
-      setSubmitError("Please sign in to submit. Your responses have been saved and will be restored when you return.");
+      setSubmitError(
+        "Please sign in to submit. Your responses have been saved and will be restored when you return.",
+      );
       return;
     }
 
@@ -349,6 +510,10 @@ export function ApplicationForm({
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       setSubmitError("Please enter a valid amount requested.");
+      return;
+    }
+    if (!getPhoneInputState(formData.phone).isValid) {
+      setSubmitError("Please enter a valid phone number.");
       return;
     }
     if (!budgetPath) {
@@ -382,7 +547,9 @@ export function ApplicationForm({
           Organization Representation
         </h2>
         <div className="mt-4">
-          <Label required>Organization for which you are making this submission</Label>
+          <Label required>
+            Organization for which you are making this submission
+          </Label>
           <SearchableOrganizationSelect
             organizations={organizations}
             value={(formData.organizationId as string) ?? ""}
@@ -401,7 +568,7 @@ export function ApplicationForm({
       {/* Preamble */}
       <section className="rounded-lg border border-gray-200 bg-amber-50/50 p-6">
         <h2 className="text-lg font-semibold text-gray-900">Preamble</h2>
-        <p className="mt-2 whitespace-pre-line text-sm text-gray-700">
+        <p className="mt-2 text-sm whitespace-pre-line text-gray-700">
           {PREAMBLE}
         </p>
       </section>
@@ -416,7 +583,7 @@ export function ApplicationForm({
             <Label required>Full Name</Label>
             <input
               type="text"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               value={(formData.fullName as string) ?? ""}
               onChange={(e) => update("fullName", e.target.value)}
               required
@@ -426,7 +593,7 @@ export function ApplicationForm({
             <Label required>UofG Email Address</Label>
             <input
               type="email"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               value={(formData.email as string) ?? ""}
               onChange={(e) => update("email", e.target.value)}
               required
@@ -434,11 +601,12 @@ export function ApplicationForm({
           </div>
           <div>
             <Label required>Phone Number</Label>
-            <input
-              type="tel"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              value={(formData.phone as string) ?? ""}
-              onChange={(e) => update("phone", e.target.value)}
+            <PhoneNumberField
+              value={phoneInput}
+              onChange={({ displayValue, storedValue }) => {
+                setPhoneInput(displayValue);
+                update("phone", storedValue);
+              }}
               required
             />
           </div>
@@ -451,11 +619,14 @@ export function ApplicationForm({
           Organization Information
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          A CSA Club is accredited through the CSA and holds a CSA Club bank account. Non-CSA clubs receive funding via cheque.
+          A CSA Club is accredited through the CSA and holds a CSA Club bank
+          account. Non-CSA clubs receive funding via cheque.
         </p>
         <div className="mt-4 space-y-4">
           <div>
-            <Label required>Is your organization accredited through the CSA?</Label>
+            <Label required>
+              Is your organization accredited through the CSA?
+            </Label>
             <div className="flex gap-6 pt-1">
               {["Yes", "No"].map((opt) => (
                 <label key={opt} className="flex items-center gap-2">
@@ -493,10 +664,12 @@ export function ApplicationForm({
         </div>
         {showExternalBanking && (
           <div className="mt-4">
-            <Label required>Name to be written on the cheque (registered bank account name)</Label>
+            <Label required>
+              Name to be written on the cheque (registered bank account name)
+            </Label>
             <input
               type="text"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               value={(formData.chequeName as string) ?? ""}
               onChange={(e) => update("chequeName", e.target.value)}
               required
@@ -506,7 +679,9 @@ export function ApplicationForm({
         )}
         {showNonCsaOrg && (
           <div className="mt-4">
-            <Label required>What Primary Student Organization is your club accredited under?</Label>
+            <Label required>
+              What Primary Student Organization is your club accredited under?
+            </Label>
             <div className="mt-2 space-y-2">
               {PRIMARY_ORGS.map((org) => (
                 <label key={org} className="flex items-center gap-2">
@@ -531,107 +706,135 @@ export function ApplicationForm({
           Other Sources of Funding
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          If your event/initiative results in a surplus, you will be required to return the awarded funds to the CSA. Requests may not be approved if your budget indicates a surplus.
+          If your event/initiative results in a surplus, you will be required to
+          return the awarded funds to the CSA. Requests may not be approved if
+          your budget indicates a surplus.
         </p>
         <div className="mt-4 space-y-4">
           <div>
             <Label required>Funding received to date</Label>
             <div className="mt-2 space-y-3">
-              {["None", "Student Life Enhancement Fund (SLEF)", "Other PDR Requests", "Other"].map(
-                (opt) => {
-                  const received = (formData.fundingReceived as string[]) ?? [];
-                  const checked = received.includes(opt);
-                  const amounts = (formData.fundingReceivedAmounts as Record<string, string>) ?? {};
-                  return (
-                    <div key={opt} className="flex flex-wrap items-center justify-between gap-2">
-                      <label className="flex items-center gap-2">
+              {[
+                "None",
+                "Student Life Enhancement Fund (SLEF)",
+                "Other PDR Requests",
+                "Other",
+              ].map((opt) => {
+                const received = (formData.fundingReceived as string[]) ?? [];
+                const checked = received.includes(opt);
+                const amounts =
+                  (formData.fundingReceivedAmounts as Record<string, string>) ??
+                  {};
+                return (
+                  <div
+                    key={opt}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...received, opt]
+                            : received.filter((x) => x !== opt);
+                          update("fundingReceived", next);
+                          if (!e.target.checked) {
+                            const nextAmounts = { ...amounts };
+                            delete nextAmounts[opt];
+                            update("fundingReceivedAmounts", nextAmounts);
+                          }
+                        }}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                    {checked && opt !== "None" && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-right text-sm text-gray-600">
+                          Amount received ($)
+                        </span>
                         <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const next = e.target.checked
-                              ? [...received, opt]
-                              : received.filter((x) => x !== opt);
-                            update("fundingReceived", next);
-                            if (!e.target.checked) {
-                              const nextAmounts = { ...amounts };
-                              delete nextAmounts[opt];
-                              update("fundingReceivedAmounts", nextAmounts);
-                            }
-                          }}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0"
+                          className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          value={amounts[opt] ?? ""}
+                          onChange={(e) =>
+                            update("fundingReceivedAmounts", {
+                              ...amounts,
+                              [opt]: e.target.value,
+                            })
+                          }
                         />
-                        <span>{opt}</span>
-                      </label>
-                      {checked && opt !== "None" && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-right text-sm text-gray-600">Amount received ($)</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0"
-                            className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            value={amounts[opt] ?? ""}
-                            onChange={(e) =>
-                              update("fundingReceivedAmounts", { ...amounts, [opt]: e.target.value })
-                            }
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-              )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div>
             <Label required>Funding you expect to receive</Label>
             <div className="mt-2 space-y-3">
-              {["None", "Student Life Enhancement Fund (SLEF)", "Other PDR Requests", "Other"].map(
-                (opt) => {
-                  const expected = (formData.fundingExpected as string[]) ?? [];
-                  const checked = expected.includes(opt);
-                  const amounts = (formData.fundingExpectedAmounts as Record<string, string>) ?? {};
-                  return (
-                    <div key={opt} className="flex flex-wrap items-center justify-between gap-2">
-                      <label className="flex items-center gap-2">
+              {[
+                "None",
+                "Student Life Enhancement Fund (SLEF)",
+                "Other PDR Requests",
+                "Other",
+              ].map((opt) => {
+                const expected = (formData.fundingExpected as string[]) ?? [];
+                const checked = expected.includes(opt);
+                const amounts =
+                  (formData.fundingExpectedAmounts as Record<string, string>) ??
+                  {};
+                return (
+                  <div
+                    key={opt}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...expected, opt]
+                            : expected.filter((x) => x !== opt);
+                          update("fundingExpected", next);
+                          if (!e.target.checked) {
+                            const nextAmounts = { ...amounts };
+                            delete nextAmounts[opt];
+                            update("fundingExpectedAmounts", nextAmounts);
+                          }
+                        }}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                    {checked && opt !== "None" && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-right text-sm text-gray-600">
+                          Amount expected ($)
+                        </span>
                         <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const next = e.target.checked
-                              ? [...expected, opt]
-                              : expected.filter((x) => x !== opt);
-                            update("fundingExpected", next);
-                            if (!e.target.checked) {
-                              const nextAmounts = { ...amounts };
-                              delete nextAmounts[opt];
-                              update("fundingExpectedAmounts", nextAmounts);
-                            }
-                          }}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0"
+                          className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          value={amounts[opt] ?? ""}
+                          onChange={(e) =>
+                            update("fundingExpectedAmounts", {
+                              ...amounts,
+                              [opt]: e.target.value,
+                            })
+                          }
                         />
-                        <span>{opt}</span>
-                      </label>
-                      {checked && opt !== "None" && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-right text-sm text-gray-600">Amount expected ($)</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0"
-                            className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            value={amounts[opt] ?? ""}
-                            onChange={(e) =>
-                              update("fundingExpectedAmounts", { ...amounts, [opt]: e.target.value })
-                            }
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-              )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -643,10 +846,14 @@ export function ApplicationForm({
           Event/Initiative Details
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          An event is a planned occasion (e.g. CSA Sexy Bingo). An initiative has clear objectives and timelines over a longer period (e.g. Menstrual Hygiene Initiative).
+          An event is a planned occasion (e.g. CSA Sexy Bingo). An initiative
+          has clear objectives and timelines over a longer period (e.g.
+          Menstrual Hygiene Initiative).
         </p>
         <div className="mt-4">
-          <Label required>Are you applying for an event or an initiative?</Label>
+          <Label required>
+            Are you applying for an event or an initiative?
+          </Label>
           <div className="flex gap-6 pt-1">
             {["Event", "Initiative"].map((opt) => (
               <label key={opt} className="flex items-center gap-2">
@@ -673,7 +880,7 @@ export function ApplicationForm({
               <Label required>Event Title</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.eventTitle as string) ?? ""}
                 onChange={(e) => update("eventTitle", e.target.value)}
                 required
@@ -683,7 +890,7 @@ export function ApplicationForm({
               <Label required>Event Location</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.eventLocation as string) ?? ""}
                 onChange={(e) => update("eventLocation", e.target.value)}
                 required
@@ -693,14 +900,17 @@ export function ApplicationForm({
               <Label required>Event Date</Label>
               <input
                 type="date"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.eventDate as string) ?? ""}
                 onChange={(e) => update("eventDate", e.target.value)}
                 required
               />
             </div>
             <div>
-              <Label required>Has this event been submitted to the Student Events & Risk Management process (GryphLife)?</Label>
+              <Label required>
+                Has this event been submitted to the Student Events & Risk
+                Management process (GryphLife)?
+              </Label>
               <p className="mb-1 text-sm text-gray-600">
                 The event does not need to be approved yet, just submitted.
               </p>
@@ -720,33 +930,43 @@ export function ApplicationForm({
               </div>
               {formData.eventGryphLife === "No" && (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
-                  All events submitted to SEIF must be submitted on GryphLife for Student Events &amp; Risk Management (SE&amp;RM) review. Please submit your event on GryphLife before continuing your SEIF application.
+                  All events submitted to SEIF must be submitted on GryphLife
+                  for Student Events &amp; Risk Management (SE&amp;RM) review.
+                  Please submit your event on GryphLife before continuing your
+                  SEIF application.
                 </div>
               )}
             </div>
             <div>
               <Label required>Event type that best describes your event</Label>
               <div className="mt-2 flex flex-wrap gap-4">
-                {["Networking", "Community-Building", "Competition", "Conference", "Demonstration", "Show, or Performance", "Fundraising for a charitable organization", "Other"].map(
-                  (opt) => (
-                    <label key={opt} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="eventType"
-                        value={opt}
-                        checked={(formData.eventType as string) === opt}
-                        onChange={() => update("eventType", opt)}
-                      />
-                      <span>{opt}</span>
-                    </label>
-                  )
-                )}
+                {[
+                  "Networking",
+                  "Community-Building",
+                  "Competition",
+                  "Conference",
+                  "Demonstration",
+                  "Show, or Performance",
+                  "Fundraising for a charitable organization",
+                  "Other",
+                ].map((opt) => (
+                  <label key={opt} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="eventType"
+                      value={opt}
+                      checked={(formData.eventType as string) === opt}
+                      onChange={() => update("eventType", opt)}
+                    />
+                    <span>{opt}</span>
+                  </label>
+                ))}
               </div>
             </div>
             <div>
               <Label required>Description of the event</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={4}
                 value={(formData.eventDescription as string) ?? ""}
                 onChange={(e) => update("eventDescription", e.target.value)}
@@ -756,7 +976,7 @@ export function ApplicationForm({
             <div>
               <Label>Co-sponsors (if any)</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={2}
                 value={(formData.eventCosponsors as string) ?? ""}
                 onChange={(e) => update("eventCosponsors", e.target.value)}
@@ -766,7 +986,7 @@ export function ApplicationForm({
               <Label required>Expected number of participants</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.eventParticipants as string) ?? ""}
                 onChange={(e) => update("eventParticipants", e.target.value)}
                 required
@@ -776,9 +996,11 @@ export function ApplicationForm({
               <Label required>Breakdown: students vs community members</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.eventParticipantsBreakdown as string) ?? ""}
-                onChange={(e) => update("eventParticipantsBreakdown", e.target.value)}
+                onChange={(e) =>
+                  update("eventParticipantsBreakdown", e.target.value)
+                }
                 placeholder="e.g. 50 students, 10 community"
                 required
               />
@@ -786,7 +1008,7 @@ export function ApplicationForm({
             <div>
               <Label required>How will you advertise?</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={3}
                 value={(formData.eventAdvertising as string) ?? ""}
                 onChange={(e) => update("eventAdvertising", e.target.value)}
@@ -811,9 +1033,11 @@ export function ApplicationForm({
               </div>
               {formData.eventFee === "Yes" && (
                 <div className="mt-3">
-                  <Label required>How much is the fee, and what does it cover?</Label>
+                  <Label required>
+                    How much is the fee, and what does it cover?
+                  </Label>
                   <textarea
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     rows={2}
                     value={(formData.eventFeeDetails as string) ?? ""}
                     onChange={(e) => update("eventFeeDetails", e.target.value)}
@@ -824,7 +1048,11 @@ export function ApplicationForm({
               )}
             </div>
             <div>
-              <Label required>The event date/time does not conflict with any religious or otherwise culturally important date(s) (see Religious Holidays Calendar).</Label>
+              <Label required>
+                The event date/time does not conflict with any religious or
+                otherwise culturally important date(s) (see Religious Holidays
+                Calendar).
+              </Label>
               <div className="flex gap-6 pt-1">
                 {["Yes", "No"].map((opt) => (
                   <label key={opt} className="flex items-center gap-2">
@@ -843,17 +1071,21 @@ export function ApplicationForm({
                 <div className="mt-3">
                   <Label required>If no, please explain.</Label>
                   <textarea
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     rows={2}
                     value={(formData.eventNoConflictExplain as string) ?? ""}
-                    onChange={(e) => update("eventNoConflictExplain", e.target.value)}
+                    onChange={(e) =>
+                      update("eventNoConflictExplain", e.target.value)
+                    }
                     required
                   />
                 </div>
               )}
             </div>
             <div>
-              <Label required>Can anyone (including community members) attend?</Label>
+              <Label required>
+                Can anyone (including community members) attend?
+              </Label>
               <div className="flex gap-6 pt-1">
                 {["Yes", "No"].map((opt) => (
                   <label key={opt} className="flex items-center gap-2">
@@ -873,9 +1105,11 @@ export function ApplicationForm({
                   <Label required>Specify who cannot attend your event.</Label>
                   <input
                     type="text"
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     value={(formData.eventOpenToAllSpecify as string) ?? ""}
-                    onChange={(e) => update("eventOpenToAllSpecify", e.target.value)}
+                    onChange={(e) =>
+                      update("eventOpenToAllSpecify", e.target.value)
+                    }
                     required
                   />
                 </div>
@@ -884,7 +1118,7 @@ export function ApplicationForm({
             <div>
               <Label required>How will you make the event accessible?</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={3}
                 value={(formData.eventAccessible as string) ?? ""}
                 onChange={(e) => update("eventAccessible", e.target.value)}
@@ -898,13 +1132,15 @@ export function ApplicationForm({
       {/* Initiative Details (conditional) */}
       {isInitiative && (
         <section className="rounded-lg border border-gray-200 bg-emerald-50/30 p-6">
-          <h2 className="text-lg font-semibold text-gray-900">Initiative Details</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Initiative Details
+          </h2>
           <div className="mt-4 space-y-4">
             <div>
               <Label required>Initiative Title</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.initiativeTitle as string) ?? ""}
                 onChange={(e) => update("initiativeTitle", e.target.value)}
                 required
@@ -914,7 +1150,7 @@ export function ApplicationForm({
               <Label required>Initiative Location</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.initiativeLocation as string) ?? ""}
                 onChange={(e) => update("initiativeLocation", e.target.value)}
                 required
@@ -924,29 +1160,32 @@ export function ApplicationForm({
               <Label required>Initiative Date (or date range)</Label>
               <input
                 type="date"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.initiativeDate as string) ?? ""}
                 onChange={(e) => update("initiativeDate", e.target.value)}
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                For a date range, use the start date. You can describe the full range in the description below.
+                For a date range, use the start date. You can describe the full
+                range in the description below.
               </p>
             </div>
             <div>
               <Label required>Description of the initiative</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={4}
                 value={(formData.initiativeDescription as string) ?? ""}
-                onChange={(e) => update("initiativeDescription", e.target.value)}
+                onChange={(e) =>
+                  update("initiativeDescription", e.target.value)
+                }
                 required
               />
             </div>
             <div>
               <Label required>Co-sponsors (if any)</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={2}
                 value={(formData.initiativeCosponsors as string) ?? ""}
                 onChange={(e) => update("initiativeCosponsors", e.target.value)}
@@ -956,7 +1195,7 @@ export function ApplicationForm({
               <Label required>How many individuals will be impacted?</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.initiativeImpact as string) ?? ""}
                 onChange={(e) => update("initiativeImpact", e.target.value)}
                 required
@@ -966,7 +1205,7 @@ export function ApplicationForm({
               <Label required>Breakdown: students vs community members</Label>
               <input
                 type="text"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={(formData.initiativeBreakdown as string) ?? ""}
                 onChange={(e) => update("initiativeBreakdown", e.target.value)}
                 required
@@ -975,15 +1214,19 @@ export function ApplicationForm({
             <div>
               <Label required>How will you advertise?</Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={3}
                 value={(formData.initiativeAdvertising as string) ?? ""}
-                onChange={(e) => update("initiativeAdvertising", e.target.value)}
+                onChange={(e) =>
+                  update("initiativeAdvertising", e.target.value)
+                }
                 required
               />
             </div>
             <div>
-              <Label required>Is there a fee associated with being part of the initiative?</Label>
+              <Label required>
+                Is there a fee associated with being part of the initiative?
+              </Label>
               <div className="flex gap-6 pt-1">
                 {["Yes", "No"].map((opt) => (
                   <label key={opt} className="flex items-center gap-2">
@@ -1000,12 +1243,16 @@ export function ApplicationForm({
               </div>
               {formData.initiativeFee === "Yes" && (
                 <div className="mt-3">
-                  <Label required>If yes, how much is the fee, and what does it cover?</Label>
+                  <Label required>
+                    If yes, how much is the fee, and what does it cover?
+                  </Label>
                   <textarea
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     rows={2}
                     value={(formData.initiativeFeeDetails as string) ?? ""}
-                    onChange={(e) => update("initiativeFeeDetails", e.target.value)}
+                    onChange={(e) =>
+                      update("initiativeFeeDetails", e.target.value)
+                    }
                     placeholder="e.g. $10 — covers materials"
                     required
                   />
@@ -1013,9 +1260,11 @@ export function ApplicationForm({
               )}
             </div>
             <div>
-              <Label required>How will you make the initiative accessible?</Label>
+              <Label required>
+                How will you make the initiative accessible?
+              </Label>
               <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 rows={3}
                 value={(formData.initiativeAccessible as string) ?? ""}
                 onChange={(e) => update("initiativeAccessible", e.target.value)}
@@ -1028,10 +1277,15 @@ export function ApplicationForm({
 
       {/* Previous Funding */}
       <section className="rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900">Previous Funding</h2>
+        <h2 className="text-lg font-semibold text-gray-900">
+          Previous Funding
+        </h2>
         <div className="mt-4 space-y-4">
           <div>
-            <Label required>Has your organization received SEIF funding this year for another event or initiative?</Label>
+            <Label required>
+              Has your organization received SEIF funding this year for another
+              event or initiative?
+            </Label>
             <div className="flex gap-6 pt-1">
               {["Yes", "I'm not sure", "No"].map((opt) => (
                 <label key={opt} className="flex items-center gap-2">
@@ -1051,7 +1305,7 @@ export function ApplicationForm({
                 <Label required>If yes, how much?</Label>
                 <input
                   type="text"
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   value={(formData.seifThisYearAmount as string) ?? ""}
                   onChange={(e) => update("seifThisYearAmount", e.target.value)}
                   placeholder="e.g. $250"
@@ -1061,7 +1315,10 @@ export function ApplicationForm({
             )}
           </div>
           <div>
-            <Label required>Has your organization received SEIF funding for the same event/initiative in the past?</Label>
+            <Label required>
+              Has your organization received SEIF funding for the same
+              event/initiative in the past?
+            </Label>
             <div className="flex gap-6 pt-1">
               {["Yes", "I'm not sure", "No"].map((opt) => (
                 <label key={opt} className="flex items-center gap-2">
@@ -1082,9 +1339,12 @@ export function ApplicationForm({
 
       {/* Financial Information */}
       <section className="rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900">Financial Information</h2>
+        <h2 className="text-lg font-semibold text-gray-900">
+          Financial Information
+        </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Please use the budget template below. Budgets not submitted using the template will not be accepted.
+          Please use the budget template below. Budgets not submitted using the
+          template will not be accepted.
         </p>
         <div className="mt-4 space-y-4">
           <div>
@@ -1113,16 +1373,19 @@ export function ApplicationForm({
               type="number"
               min="0"
               step="0.01"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               value={(formData.amountRequested as string) ?? ""}
               onChange={(e) => update("amountRequested", e.target.value)}
               required
             />
           </div>
           <div>
-            <Label required>If you do not receive full funding, how will this impact the event? What portion of your budget is CSA funding?</Label>
+            <Label required>
+              If you do not receive full funding, how will this impact the
+              event? What portion of your budget is CSA funding?
+            </Label>
             <textarea
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               rows={4}
               value={(formData.impactPartialFunding as string) ?? ""}
               onChange={(e) => update("impactPartialFunding", e.target.value)}
@@ -1132,7 +1395,7 @@ export function ApplicationForm({
           <div>
             <Label>Anything else the SEIF Committee should know?</Label>
             <textarea
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               rows={3}
               value={(formData.additionalInfo as string) ?? ""}
               onChange={(e) => update("additionalInfo", e.target.value)}
@@ -1143,13 +1406,19 @@ export function ApplicationForm({
 
       {/* Terms & Conditions */}
       <section className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-        <h2 className="text-lg font-semibold text-gray-900">Terms & Conditions</h2>
+        <h2 className="text-lg font-semibold text-gray-900">
+          Terms & Conditions
+        </h2>
         <p className="mt-2 text-sm text-gray-600">
-          Please check each box next to the statement and enter your name as a digital signature.
+          Please check each box next to the statement and enter your name as a
+          digital signature.
         </p>
         <div className="mt-4 space-y-3">
           {TERMS_STATEMENTS.map(({ key, text }) => (
-            <label key={key} className="flex items-start gap-3 text-sm text-gray-700">
+            <label
+              key={key}
+              className="flex items-start gap-3 text-sm text-gray-700"
+            >
               <input
                 type="checkbox"
                 className="mt-0.5 shrink-0"
@@ -1164,7 +1433,7 @@ export function ApplicationForm({
             <Label required>Digital signature (your full name)</Label>
             <input
               type="text"
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               value={(formData.signature as string) ?? ""}
               onChange={(e) => update("signature", e.target.value)}
               placeholder="Type your full name"
@@ -1182,16 +1451,21 @@ export function ApplicationForm({
 
       {!session?.user && (
         <p className="text-sm text-amber-700">
-          You must sign in to submit. Your responses are saved automatically and will be here when you return.
+          You must sign in to submit. Your responses are saved automatically and
+          will be here when you return.
         </p>
       )}
       <div className="flex justify-end gap-4">
         <button
           type="submit"
-          disabled={create.isPending}
+          disabled={create.isPending || resubmit.isPending}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
         >
-          {create.isPending ? "Submitting…" : session?.user ? "Submit Application" : "Sign in to submit"}
+          {create.isPending || resubmit.isPending
+            ? "Submitting…"
+            : session?.user
+              ? "Submit Application"
+              : "Sign in to submit"}
         </button>
       </div>
     </form>
