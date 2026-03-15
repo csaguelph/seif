@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
     "better-auth": "^1.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
@@ -54,10 +55,14 @@
     "prisma": "^7.0.0",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.27.0"
+    "typescript-eslint": "^8.27.0",
+    "tsx": "^4.19.2"
   },
   "ct3aMetadata": {
     "initVersion": "7.40.0"
   },
-  "packageManager": "pnpm@10.32.1"
+  "packageManager": "pnpm@10.32.1",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
 }

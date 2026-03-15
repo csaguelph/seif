@@ -15,6 +15,20 @@ export async function Navbar() {
           <span className="text-xl font-semibold text-gray-900">SEIF</span>
         </Link>
         <nav className="flex items-center gap-4">
+          <Link
+            href="/apply"
+            className="text-sm font-medium text-gray-700 hover:text-gray-900"
+          >
+            Apply
+          </Link>
+          {session?.user?.role === "ADMIN" && (
+            <Link
+              href="/admin"
+              className="text-sm font-medium text-gray-700 hover:text-gray-900"
+            >
+              Admin
+            </Link>
+          )}
           <UserDropdown session={session} />
         </nav>
       </div>
