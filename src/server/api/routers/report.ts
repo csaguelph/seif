@@ -107,14 +107,12 @@ async function runReceiptOcr(receiptUrl: string): Promise<Pick<ReceiptReview, "r
   if (!content) throw new Error("Empty response from OCR model.");
 
   // Strip markdown fences if the model wrapped the JSON
-  const raw = content.includes("```")
-    ? (content.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1] ?? content)
-    : content;
+  const raw = /```(?:json)?\s*([\s\S]*?)```/.exec(content)?.[1] ?? content;
 
   const parsed = JSON.parse(raw) as {
     receipts?: Array<{
-      storeName?: unknown;
-      items?: Array<{ description?: unknown; amount?: unknown }>;
+      storeName?: string;
+      items?: Array<{ description?: string; amount?: unknown }>;
       subtotal?: unknown;
       tax?: unknown;
       total?: unknown;
@@ -126,7 +124,7 @@ async function runReceiptOcr(receiptUrl: string): Promise<Pick<ReceiptReview, "r
     items: (r.items ?? []).map(
       (item): ReceiptLineItem => ({
         id: randomUUID(),
-        description: String(item.description ?? ""),
+        description: item.description ?? "",
         amount: Number(item.amount ?? 0),
         eligible: true,
       }),
