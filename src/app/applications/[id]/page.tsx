@@ -12,7 +12,7 @@ export const metadata = {
   description: "View your SEIF application details",
 };
 
-export default async function DashboardApplicationDetailPage({
+export default async function ApplicationDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -35,7 +35,7 @@ export default async function DashboardApplicationDetailPage({
     typeof value === "string" && value.length > 0 ? value : "—";
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-4xl py-8">
       <Link
         href="/"
         className="text-sm font-medium text-indigo-600 hover:text-indigo-900"

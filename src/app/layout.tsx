@@ -26,7 +26,11 @@ export default function RootLayout({
       <body className="flex min-h-screen flex-col">
         <TRPCReactProvider>
           <Navbar />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              {children}
+            </div>
+          </main>
           <Footer />
         </TRPCReactProvider>
       </body>

@@ -79,7 +79,7 @@ export function UserApplicationsTable() {
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
                 <Link
-                  href={`/dashboard/applications/${app.id}`}
+                  href={`/applications/${app.id}`}
                   className="font-medium text-indigo-600 hover:text-indigo-900"
                 >
                   View details
