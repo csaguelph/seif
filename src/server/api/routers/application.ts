@@ -48,6 +48,7 @@ export const applicationRouter = createTRPCRouter({
       include: {
         organization: true,
         submittedBy: true,
+        reviewedBy: true,
       },
     });
   }),
@@ -60,6 +61,7 @@ export const applicationRouter = createTRPCRouter({
         include: {
           organization: true,
           submittedBy: true,
+          reviewedBy: true,
         },
       });
     }),
@@ -80,6 +82,7 @@ export const applicationRouter = createTRPCRouter({
         },
         data: {
           status: "APPROVED",
+          reviewedById: ctx.session.user.id,
           reviewerComments: normalizeNullableString(input.comments),
           approvalConditions: normalizeNullableString(input.conditions),
           denialReason: null,
@@ -112,6 +115,7 @@ export const applicationRouter = createTRPCRouter({
         },
         data: {
           status: "REJECTED",
+          reviewedById: ctx.session.user.id,
           denialReason: input.reason,
           reviewerComments: null,
           approvalConditions: null,

@@ -159,6 +159,16 @@ export default async function ApplicationDetailPage({
                   </dd>
                 </div>
               )}
+              {application.reviewedBy && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Reviewed by
+                  </dt>
+                  <dd className="mt-0.5 text-gray-900">
+                    {application.reviewedBy.name} ({application.reviewedBy.email})
+                  </dd>
+                </div>
+              )}
               {application.reviewerComments && (
                 <div>
                   <dt className="text-xs font-medium uppercase text-gray-500">

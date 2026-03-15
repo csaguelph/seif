@@ -26,7 +26,8 @@ model User {
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
-  applications  SeifApplication[]
+  applications  SeifApplication[] @relation("ApplicationSubmitter")
+  reviewedApplications SeifApplication[] @relation("ApplicationReviewer")
 }
 
 model Session {
@@ -94,7 +95,7 @@ model SeifApplication {
   organizationId  String
   organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   submittedById   String?
-  submittedBy     User?             @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedBy     User?             @relation("ApplicationSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
   submittedAt     DateTime          @default(now())
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -104,6 +105,8 @@ model SeifApplication {
   budgetFilePath  String?
   // Admin review metadata
   reviewedAt         DateTime?
+  reviewedById       String?
+  reviewedBy         User?     @relation("ApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewerComments   String?
   approvalConditions String?
   denialReason       String?
