@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { TRPCError } from "@trpc/server";
 import Link from "next/link";
 import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
@@ -21,7 +22,12 @@ export default async function DashboardApplicationDetailPage({
   const caller = createCaller(ctx);
   const application = await caller.application
     .getMyApplicationById({ id })
-    .catch(() => null);
+    .catch((err: unknown) => {
+      if (err instanceof TRPCError && err.code === "NOT_FOUND") {
+        return null;
+      }
+      throw err;
+    });
   if (!application) notFound();
 
   const form = application.formData as Record<string, unknown>;
