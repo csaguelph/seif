@@ -36,7 +36,6 @@ export function ApplicationDecisionPanel({
 
   const refreshApplication = () => {
     void utils.application.list.invalidate();
-    void utils.application.getById.invalidate({ id: applicationId });
     startTransition(() => {
       router.refresh();
     });
