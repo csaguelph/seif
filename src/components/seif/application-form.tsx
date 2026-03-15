@@ -416,11 +416,11 @@ export function ApplicationForm({
   const { data: session } = authClient.useSession();
   const [formData, setFormData] = useState<FormData>(editApplication?.formData ?? {});
   const [budgetPath, setBudgetPath] = useState<string>(editApplication?.budgetFilePath ?? "");
-  const [phoneInput, setPhoneInput] = useState(() =>
-    editApplication?.formData?.phone != null
-      ? getPhoneInputState(String(editApplication.formData.phone)).formatted
-      : ""
-  );
+  const [phoneInput, setPhoneInput] = useState(() => {
+    const raw = editApplication?.formData?.phone;
+    const phoneStr = typeof raw === "string" ? raw : "";
+    return phoneStr ? getPhoneInputState(phoneStr).formatted : "";
+  });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
 
