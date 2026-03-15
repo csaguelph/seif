@@ -57,6 +57,7 @@ export function ApplicationDecisionPanel({
   }
 
   const handleApprove = () => {
+    rejectMutation.reset();
     approveMutation.mutate({
       id: applicationId,
       comments,
@@ -65,6 +66,7 @@ export function ApplicationDecisionPanel({
   };
 
   const handleReject = () => {
+    approveMutation.reset();
     rejectMutation.mutate({
       id: applicationId,
       reason: denialReason,
