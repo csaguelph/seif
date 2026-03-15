@@ -1,8 +1,142 @@
+import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
-import type { ReceiptReview } from "~/types/receipt-review";
+import { env } from "~/env.js";
+import type { ParsedReceipt, ReceiptLineItem, ReceiptReview } from "~/types/receipt-review";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Upsert a ReceiptReview entry into an existing array by URL. */
+function upsertReview(existing: ReceiptReview[], entry: ReceiptReview): ReceiptReview[] {
+  const updated = [...existing];
+  const idx = updated.findIndex((r) => r.url === entry.url);
+  if (idx >= 0) {
+    updated[idx] = { ...updated[idx]!, ...entry };
+  } else {
+    updated.push(entry);
+  }
+  return updated;
+}
+
+/**
+ * Return the image content block for OpenRouter.
+ * - Images (jpg/png): pass the URL directly — Gemini can fetch public URLs.
+ * - PDFs: fetch and send as a base64 data URI (URL passing not reliable for PDFs).
+ */
+async function buildImageContent(
+  url: string,
+): Promise<{ type: "image_url"; image_url: { url: string } }> {
+  const ext = new URL(url).pathname.split(".").pop()?.toLowerCase() ?? "";
+
+  if (ext === "pdf") {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch receipt PDF (HTTP ${res.status})`);
+    const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    return { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}` } };
+  }
+
+  // For images, pass the public URL directly — avoids large base64 request bodies
+  return { type: "image_url", image_url: { url } };
+}
+
+const OCR_PROMPT = `\
+You are analyzing an image or PDF that may contain one or more receipts.
+
+For EACH distinct receipt visible, extract the store name, all line items, and the totals.
+
+Return ONLY a JSON object — no markdown, no explanation — with this structure:
+{
+  "receipts": [
+    {
+      "storeName": "Store Name",
+      "items": [
+        { "description": "Item name", "amount": 12.50 }
+      ],
+      "subtotal": 100.00,
+      "tax": 13.00,
+      "total": 113.00
+    }
+  ]
+}
+
+Rules:
+- Include one object in "receipts" for each distinct receipt in the image
+- "storeName" is the merchant name as printed on the receipt; omit the field if not legible
+- "amount" for each item is the line item price as shown on the receipt (pre-tax), as a plain number
+- "subtotal" is the pre-tax total; omit if not shown on the receipt
+- "tax" is the total tax charged; omit if not shown
+- "total" is the grand total charged; omit if not shown
+- All monetary values must be plain numbers (e.g. 12.50, not "$12.50")`;
+
+/** Call OpenRouter with Gemini 2.5 Flash to OCR a receipt image. */
+async function runReceiptOcr(receiptUrl: string): Promise<Pick<ReceiptReview, "receipts">> {
+  const imageContent = await buildImageContent(receiptUrl);
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": env.BETTER_AUTH_URL,
+      "X-Title": "SEIF Receipt Review",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      // response_format omitted — not supported for multimodal requests on Gemini via OpenRouter
+      messages: [
+        {
+          role: "user",
+          content: [imageContent, { type: "text", text: OCR_PROMPT }],
+        },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`OpenRouter error ${res.status}: ${body}`);
+  }
+
+  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Empty response from OCR model.");
+
+  // Strip markdown fences if the model wrapped the JSON
+  const raw = content.includes("```")
+    ? (content.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1] ?? content)
+    : content;
+
+  const parsed = JSON.parse(raw) as {
+    receipts?: Array<{
+      storeName?: unknown;
+      items?: Array<{ description?: unknown; amount?: unknown }>;
+      subtotal?: unknown;
+      tax?: unknown;
+      total?: unknown;
+    }>;
+  };
+
+  const receipts: ParsedReceipt[] = (parsed.receipts ?? []).map((r) => ({
+    storeName: r.storeName ? String(r.storeName) : undefined,
+    items: (r.items ?? []).map(
+      (item): ReceiptLineItem => ({
+        id: randomUUID(),
+        description: String(item.description ?? ""),
+        amount: Number(item.amount ?? 0),
+        eligible: true,
+      }),
+    ),
+    ...(r.subtotal != null ? { subtotal: Number(r.subtotal) } : {}),
+    ...(r.tax != null ? { tax: Number(r.tax) } : {}),
+    ...(r.total != null ? { total: Number(r.total) } : {}),
+  }));
+
+  return { receipts };
+}
 
 const reportStatusSchema = z.enum(["SUBMITTED", "COMPLETE", "PENDING_FUNDS_RETURN", "FUNDS_RETURNED"]);
 
@@ -126,24 +260,28 @@ export const reportRouter = createTRPCRouter({
       return report;
     }),
 
-  /** Save admin review data for a single receipt (items + eligible flags). */
+  /** Save admin review data for a receipt image (one or more parsed receipts). */
   saveReceiptReview: adminProcedure
     .input(
       z.object({
         reportId: z.string().cuid(),
         receiptUrl: z.string().url(),
-        items: z.array(
+        receipts: z.array(
           z.object({
-            id: z.string(),
-            description: z.string(),
-            amount: z.number().min(0).finite(),
+            storeName: z.string().optional(),
+            items: z.array(
+              z.object({
+                id: z.string(),
+                description: z.string(),
+                amount: z.number().min(0).finite(),
+                eligible: z.boolean(),
+              }),
+            ),
+            subtotal: z.number().min(0).finite().optional(),
             tax: z.number().min(0).finite().optional(),
-            eligible: z.boolean(),
+            total: z.number().min(0).finite().optional(),
           }),
         ),
-        detectedSubtotal: z.number().optional(),
-        detectedTax: z.number().optional(),
-        detectedTotal: z.number().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -154,32 +292,21 @@ export const reportRouter = createTRPCRouter({
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
 
       const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
-      const idx = existing.findIndex((r) => r.url === input.receiptUrl);
       const entry: ReceiptReview = {
         url: input.receiptUrl,
         ocrStatus: "complete",
-        items: input.items,
-        detectedSubtotal: input.detectedSubtotal,
-        detectedTax: input.detectedTax,
-        detectedTotal: input.detectedTotal,
+        receipts: input.receipts,
         reviewedAt: new Date().toISOString(),
       };
-      const updated = [...existing];
-      if (idx >= 0) {
-        updated[idx] = { ...existing[idx]!, ...entry };
-      } else {
-        updated.push(entry);
-      }
       return ctx.db.seifReport.update({
         where: { id: input.reportId },
-        data: { receiptReviews: updated as unknown as object },
+        data: { receiptReviews: upsertReview(existing, entry) as unknown as object },
       });
     }),
 
   /**
-   * Trigger AI OCR analysis for a single receipt (admin).
-   * Marks the receipt as "processing" in the DB.
-   * TODO: integrate OpenRouter + Gemini 2.5 Flash to parse the receipt and populate items.
+   * Run AI OCR on a single receipt via OpenRouter (Gemini 2.5 Flash).
+   * Synchronously fetches, analyses, and saves the result; returns the ReceiptReview entry.
    */
   triggerReceiptOcr: adminProcedure
     .input(
@@ -196,28 +323,29 @@ export const reportRouter = createTRPCRouter({
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
 
       const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
-      const idx = existing.findIndex((r) => r.url === input.receiptUrl);
-      const updated = [...existing];
-      const entry: ReceiptReview = {
-        url: input.receiptUrl,
-        ocrStatus: "processing",
-        items: idx >= 0 ? (existing[idx]!.items ?? []) : [],
-      };
-      if (idx >= 0) {
-        updated[idx] = { ...existing[idx]!, ...entry };
-      } else {
-        updated.push(entry);
+
+      let entry: ReceiptReview;
+      try {
+        const ocr = await runReceiptOcr(input.receiptUrl);
+        entry = { url: input.receiptUrl, ocrStatus: "complete", ...ocr };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[receipt-ocr] failed:", message, err);
+        entry = {
+          url: input.receiptUrl,
+          ocrStatus: "error",
+          ocrError: message,
+          // Preserve any receipts the admin had already added manually
+          receipts: existing.find((r) => r.url === input.receiptUrl)?.receipts ?? [],
+        };
       }
+
       await ctx.db.seifReport.update({
         where: { id: input.reportId },
-        data: { receiptReviews: updated as unknown as object },
+        data: { receiptReviews: upsertReview(existing, entry) as unknown as object },
       });
 
-      // TODO: kick off async AI analysis via OpenRouter (Gemini 2.5 Flash)
-      // The model should return JSON with line items (description, amount, tax), subtotal, tax, total.
-      // On completion, update ocrStatus to "complete" and populate items.
-
-      return { status: "processing" as const };
+      return entry;
     }),
 
   /** Update report status and optional reviewer notes (admin). */

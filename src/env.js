@@ -23,6 +23,8 @@ export const env = createEnv({
     R2_BUCKET_NAME: z.string().min(1),
     /** Public URL for the R2 bucket (e.g. https://pub-xxx.r2.dev or custom domain). No trailing slash. */
     R2_PUBLIC_URL: z.string().url(),
+    /** OpenRouter API key for AI receipt analysis. */
+    OPENROUTER_API_KEY: z.string().min(1),
   },
 
   /**
@@ -51,6 +53,7 @@ export const env = createEnv({
     R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
     R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,
     R2_PUBLIC_URL: process.env.R2_PUBLIC_URL,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     NEXT_PUBLIC_GIT_COMMIT_SHA: process.env.NEXT_PUBLIC_GIT_COMMIT_SHA,
   },
   /**

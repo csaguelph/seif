@@ -3,24 +3,28 @@ export type OcrStatus = "pending" | "processing" | "complete" | "error";
 export interface ReceiptLineItem {
   id: string;
   description: string;
-  /** Total cost for this line item, including any tax */
+  /** Line item price as shown on the receipt, before any receipt-level tax */
   amount: number;
-  /** Tax component broken out by OCR (if available) */
-  tax?: number;
   eligible: boolean;
+}
+
+export interface ParsedReceipt {
+  storeName?: string;
+  items: ReceiptLineItem[];
+  /** Pre-tax subtotal as shown on the receipt */
+  subtotal?: number;
+  /** Total tax charged on this receipt */
+  tax?: number;
+  /** Grand total as shown on the receipt */
+  total?: number;
 }
 
 export interface ReceiptReview {
   url: string;
   ocrStatus: OcrStatus;
   ocrError?: string;
-  items: ReceiptLineItem[];
-  /** Subtotal as detected by OCR (before tax) */
-  detectedSubtotal?: number;
-  /** Total tax as detected by OCR */
-  detectedTax?: number;
-  /** Grand total as detected by OCR */
-  detectedTotal?: number;
+  /** One entry per distinct receipt detected in the image */
+  receipts: ParsedReceipt[];
   /** ISO timestamp of last admin save */
   reviewedAt?: string;
 }
