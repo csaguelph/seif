@@ -196,7 +196,7 @@ export function SeifReportForm({
             value={finalBudgetFilePath}
             onChange={setFinalBudgetFilePath}
             label="Final budget file"
-            hint="Use the template from the SEIF website. Excel only (.xlsx, .xls) (max 10 MB)."
+            hint="Use the template from the SEIF website. Excel only (.xlsx, .xls) (max 5 MB)."
           />
         </div>
       </section>

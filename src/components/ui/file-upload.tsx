@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { CheckCircle, Trash2, Upload, XCircle } from "lucide-react";
 
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 const ACCEPT = ".xlsx,.xls";
 const ALLOWED_EXT = [".xlsx", ".xls"];
 
@@ -31,9 +31,9 @@ interface BudgetFileUploadProps {
 export function BudgetFileUpload({
   value,
   onChange,
-  uploadUrl = "/api/upload",
+  uploadUrl = "/api/upload?type=application-budget",
   disabled = false,
-  hint = "Excel only (.xlsx, .xls) (max. 10 MB)",
+  hint = "Excel only (.xlsx, .xls) (max 5 MB)",
 }: BudgetFileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<UploadStatus>("idle");
@@ -47,7 +47,7 @@ export function BudgetFileUpload({
     setFileName(file.name);
     setFileSize(file.size);
     if (file.size > MAX_SIZE) {
-      setError("File too large (max 10 MB)");
+      setError("File too large (max 5 MB)");
       setStatus("failed");
       return;
     }
@@ -253,10 +253,10 @@ export function BudgetFileUpload({
   );
 }
 
-// --- Report uploads (final budget: Excel only, same as application; receipts: 5MB each, max 10) ---
+// --- Report uploads (final budget: Excel only; receipts: multiple types) ---
 const REPORT_BUDGET_ACCEPT = ".xlsx,.xls";
 const REPORT_BUDGET_EXT = [".xlsx", ".xls"];
-const REPORT_BUDGET_MAX_SIZE = 10 * 1024 * 1024; // 10MB, same as application form
+const REPORT_BUDGET_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const RECEIPT_MAX_SIZE = 5 * 1024 * 1024; // 5MB per receipt
 const RECEIPT_ACCEPT = ".xlsx,.xls,.pdf,.png,.jpg,.jpeg";
@@ -277,7 +277,7 @@ export function ReportBudgetUpload({
   onChange,
   disabled = false,
   label = "Final budget",
-  hint = "Use the specified format from the SEIF website. Excel only (.xlsx, .xls) (max 10 MB).",
+  hint = "Use the specified format from the SEIF website. Excel only (.xlsx, .xls) (max 5 MB).",
 }: ReportFileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<UploadStatus>("idle");
@@ -289,7 +289,7 @@ export function ReportBudgetUpload({
     setError(null);
     setFileName(file.name);
     if (file.size > REPORT_BUDGET_MAX_SIZE) {
-      setError("File too large (max 10 MB)");
+      setError("File too large (max 5 MB)");
       setStatus("failed");
       return;
     }
@@ -332,7 +332,7 @@ export function ReportBudgetUpload({
       setError("Upload failed");
       setStatus("failed");
     });
-    xhr.open("POST", "/api/upload-report?type=budget");
+    xhr.open("POST", "/api/upload?type=report-budget");
     xhr.send(formData);
   };
 
@@ -448,7 +448,7 @@ export function ReportReceiptsUpload({
         }
       });
       xhr.addEventListener("error", () => resolve(null));
-      xhr.open("POST", "/api/upload-report");
+      xhr.open("POST", "/api/upload?type=report-receipt");
       xhr.send(formData);
     });
   };

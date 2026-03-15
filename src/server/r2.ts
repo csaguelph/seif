@@ -23,37 +23,15 @@ export type UploadResult = { key: string; url: string };
 
 /**
  * Upload a buffer to R2 and return the public URL.
- * Key format: budgets/<uuid>.<ext> so we can prefix or list by folder later.
+ * @param prefix - Folder prefix in the bucket (e.g. "budgets", "reports").
  */
 export async function uploadToR2(
   body: Buffer,
   contentType: string,
-  extension: string
+  extension: string,
+  prefix: string
 ): Promise<UploadResult> {
-  const key = `budgets/${randomUUID()}${extension}`;
-
-  await r2Client.send(
-    new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    })
-  );
-
-  const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
-  const url = `${baseUrl}/${key}`;
-
-  return { key, url };
-}
-
-/** Upload report files (final budget, receipts). Key prefix: reports/ */
-export async function uploadReportFile(
-  body: Buffer,
-  contentType: string,
-  extension: string
-): Promise<UploadResult> {
-  const key = `reports/${randomUUID()}${extension}`;
+  const key = `${prefix}/${randomUUID()}${extension}`;
 
   await r2Client.send(
     new PutObjectCommand({

@@ -1104,7 +1104,7 @@ export function ApplicationForm({
             <BudgetFileUpload
               value={budgetPath}
               onChange={setBudgetPath}
-              hint="Excel only (.xlsx, .xls) (max. 10 MB)"
+              hint="Excel only (.xlsx, .xls) (max 5 MB)"
             />
           </div>
           <div>
