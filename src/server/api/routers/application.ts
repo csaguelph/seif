@@ -21,7 +21,7 @@ export const applicationRouter = createTRPCRouter({
     });
   }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
         organizationId: z.string().cuid(),
@@ -37,7 +37,7 @@ export const applicationRouter = createTRPCRouter({
           amountRequested: input.amountRequested,
           budgetFilePath: input.budgetFilePath ?? null,
           formData: input.formData as object,
-          submittedById: ctx.session?.user?.id ?? null,
+          submittedById: ctx.session.user.id,
         },
       });
     }),

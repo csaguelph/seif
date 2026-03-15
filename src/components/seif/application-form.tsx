@@ -1349,6 +1349,24 @@ export function ApplicationForm({
         <div className="mt-4 space-y-4">
           <div>
             <Label required>Upload your budget</Label>
+            {!session?.user && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Sign in to upload your budget and submit your application. Your
+                responses are saved automatically.
+                <button
+                  type="button"
+                  onClick={() =>
+                    void authClient.signIn.social({
+                      provider: "microsoft",
+                      callbackURL: "/apply",
+                    })
+                  }
+                  className="ml-2 font-medium text-amber-900 underline hover:no-underline"
+                >
+                  Sign in
+                </button>
+              </div>
+            )}
             <p className="mb-2 text-sm text-gray-500">
               Download and use the{" "}
               <a
@@ -1365,6 +1383,7 @@ export function ApplicationForm({
               value={budgetPath}
               onChange={setBudgetPath}
               hint="Excel only (.xlsx, .xls) (max 5 MB)"
+              disabled={!session?.user}
             />
           </div>
           <div>
@@ -1451,8 +1470,8 @@ export function ApplicationForm({
 
       {!session?.user && (
         <p className="text-sm text-amber-700">
-          You must sign in to submit. Your responses are saved automatically and
-          will be here when you return.
+          You must sign in to upload your budget and submit. Your responses are
+          saved automatically and will be here when you return.
         </p>
       )}
       <div className="flex justify-end gap-4">
