@@ -150,6 +150,7 @@ export default async function AdminReportDetailPage({
           reportId={report.id}
           receiptsFilePaths={receipts}
           initialReviews={receiptReviews}
+          initialStatus={report.status}
         />
       </div>
 

@@ -9,6 +9,7 @@ import {
   Sparkles,
   Check,
   X,
+  Lock,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import type { ParsedReceipt, ReceiptLineItem, ReceiptReview, OcrStatus } from "~/types/receipt-review";
@@ -62,10 +63,12 @@ export function ReceiptReviewer({
   reportId,
   receiptsFilePaths,
   initialReviews,
+  initialStatus,
 }: {
   reportId: string;
   receiptsFilePaths: string[];
   initialReviews: ReceiptReview[];
+  initialStatus: string;
 }) {
   if (receiptsFilePaths.length === 0) {
     return <p className="text-sm text-gray-500">No receipts were submitted with this report.</p>;
@@ -75,6 +78,7 @@ export function ReceiptReviewer({
       reportId={reportId}
       receiptsFilePaths={receiptsFilePaths}
       initialReviews={initialReviews}
+      initialStatus={initialStatus}
     />
   );
 }
@@ -83,10 +87,12 @@ function ReceiptReviewerInner({
   reportId,
   receiptsFilePaths,
   initialReviews,
+  initialStatus,
 }: {
   reportId: string;
   receiptsFilePaths: string[];
   initialReviews: ReceiptReview[];
+  initialStatus: string;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeReceiptIdx, setActiveReceiptIdx] = useState(0);
@@ -96,6 +102,13 @@ function ReceiptReviewerInner({
   const [savedUrls, setSavedUrls] = useState<Set<string>>(
     () => new Set(initialReviews.map((r) => r.url)),
   );
+
+  // Subscribe to live status so the panel locks as soon as the pipeline panel finalizes
+  const { data: latestReport } = api.report.getById.useQuery(
+    { id: reportId },
+    { staleTime: 60_000, refetchOnWindowFocus: false },
+  );
+  const locked = (latestReport?.status ?? initialStatus) !== "SUBMITTED";
 
   const currentUrl = receiptsFilePaths[currentIndex]!;
   const currentReview = reviews[currentUrl]!;
@@ -196,6 +209,13 @@ function ReceiptReviewerInner({
         </span>
       </div>
 
+      {locked && (
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <Lock className="h-3.5 w-3.5 flex-shrink-0" />
+          Receipt review is locked — the report has been finalised and can no longer be edited.
+        </div>
+      )}
+
       <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
         {/* ------------------------------------------------------------------ */}
         {/* Left: Receipt Viewer                                                */}
@@ -281,14 +301,16 @@ function ReceiptReviewerInner({
               <span className="text-sm font-medium text-gray-700">AI Analysis</span>
               <OcrStatusBadge status={currentReview.ocrStatus} />
             </div>
-            <button
-              onClick={() => triggerOcr.mutate({ reportId, receiptUrl: currentUrl })}
-              disabled={triggerOcr.isPending}
-              className="flex items-center gap-1.5 rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {triggerOcr.isPending ? "Analyzing…" : "Analyze with AI"}
-            </button>
+            {!locked && (
+              <button
+                onClick={() => triggerOcr.mutate({ reportId, receiptUrl: currentUrl })}
+                disabled={triggerOcr.isPending}
+                className="flex items-center gap-1.5 rounded-md bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {triggerOcr.isPending ? "Analyzing…" : "Analyze with AI"}
+              </button>
+            )}
           </div>
 
           {/* Receipt tabs (always visible — lets admins add more) */}
@@ -307,13 +329,15 @@ function ReceiptReviewerInner({
                   {r.storeName ?? `Receipt ${i + 1}`}
                 </button>
               ))}
-              <button
-                onClick={addReceipt}
-                title="Add another receipt"
-                className="ml-1 rounded p-1 text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
+              {!locked && (
+                <button
+                  onClick={addReceipt}
+                  title="Add another receipt"
+                  className="ml-1 rounded p-1 text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
 
@@ -325,6 +349,7 @@ function ReceiptReviewerInner({
                 receiptIdx={safeReceiptIdx}
                 showDelete={currentReview.receipts.length > 1}
                 ocrStatus={currentReview.ocrStatus}
+                locked={locked}
                 onUpdate={updateReceipt}
                 onDelete={deleteReceipt}
               />
@@ -339,13 +364,15 @@ function ReceiptReviewerInner({
                     "Run AI analysis or add a receipt manually."
                   )}
                 </p>
-                <button
-                  onClick={addReceipt}
-                  className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-900"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add receipt manually
-                </button>
+                {!locked && (
+                  <button
+                    onClick={addReceipt}
+                    className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-900"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add receipt manually
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -361,28 +388,31 @@ function ReceiptReviewerInner({
           )}
 
           {/* Save */}
-          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
-            <span className="text-xs">
-              {isDirty ? (
-                <span className="text-amber-600">Unsaved changes</span>
-              ) : savedUrls.has(currentUrl) ? (
-                <span className="flex items-center gap-1 text-green-600">
-                  <Check className="h-3 w-3" />
-                  Saved
+          {!locked && (
+            <>
+              <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
+                <span className="text-xs">
+                  {isDirty ? (
+                    <span className="text-amber-600">Unsaved changes</span>
+                  ) : savedUrls.has(currentUrl) ? (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <Check className="h-3 w-3" />
+                      Saved
+                    </span>
+                  ) : null}
                 </span>
-              ) : null}
-            </span>
-            <button
-              onClick={handleSave}
-              disabled={saveReview.isPending || !isDirty}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {saveReview.isPending ? "Saving…" : "Save review"}
-            </button>
-          </div>
-
-          {saveReview.error && (
-            <p className="px-4 pb-3 text-sm text-red-600">{saveReview.error.message}</p>
+                <button
+                  onClick={handleSave}
+                  disabled={saveReview.isPending || !isDirty}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saveReview.isPending ? "Saving…" : "Save review"}
+                </button>
+              </div>
+              {saveReview.error && (
+                <p className="px-4 pb-3 text-sm text-red-600">{saveReview.error.message}</p>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -399,6 +429,7 @@ function ReceiptPane({
   receiptIdx,
   showDelete,
   ocrStatus,
+  locked,
   onUpdate,
   onDelete,
 }: {
@@ -406,6 +437,7 @@ function ReceiptPane({
   receiptIdx: number;
   showDelete: boolean;
   ocrStatus: OcrStatus;
+  locked: boolean;
   onUpdate: (idx: number, updater: (r: ParsedReceipt) => ParsedReceipt) => void;
   onDelete: (idx: number) => void;
 }) {
@@ -439,7 +471,8 @@ function ReceiptPane({
           update((r) => ({ ...r, storeName: e.target.value || undefined }))
         }
         placeholder="Store name"
-        className="mb-3 w-full border-0 border-b border-transparent bg-transparent px-0 py-0.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:border-indigo-300 focus:outline-none focus:ring-0"
+        readOnly={locked}
+        className={`mb-3 w-full border-0 border-b bg-transparent px-0 py-0.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-0 ${locked ? "border-transparent" : "border-transparent focus:border-indigo-300"}`}
       />
 
       {/* Items header */}
@@ -466,6 +499,7 @@ function ReceiptPane({
             <ItemRow
               key={item.id}
               item={item}
+              locked={locked}
               onChange={(patch) => updateItem(item.id, patch)}
               onDelete={() => deleteItem(item.id)}
             />
@@ -473,13 +507,15 @@ function ReceiptPane({
         </div>
       )}
 
-      <button
-        onClick={addItem}
-        className="mt-3 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-900"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add item
-      </button>
+      {!locked && (
+        <button
+          onClick={addItem}
+          className="mt-3 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-900"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add item
+        </button>
+      )}
 
       {/* Per-receipt totals */}
       {receipt.items.length > 0 && (
@@ -519,7 +555,7 @@ function ReceiptPane({
         </div>
       )}
 
-      {showDelete && (
+      {showDelete && !locked && (
         <button
           onClick={() => onDelete(receiptIdx)}
           className="mt-3 flex items-center gap-1 text-xs text-red-400 hover:text-red-600"
@@ -538,10 +574,12 @@ function ReceiptPane({
 
 function ItemRow({
   item,
+  locked,
   onChange,
   onDelete,
 }: {
   item: ReceiptLineItem;
+  locked: boolean;
   onChange: (patch: Partial<ReceiptLineItem>) => void;
   onDelete: () => void;
 }) {
@@ -549,13 +587,14 @@ function ItemRow({
     <div className="group flex items-start gap-2">
       <button
         type="button"
-        onClick={() => onChange({ eligible: !item.eligible })}
-        title={item.eligible ? "Eligible — click to exclude" : "Excluded — click to include"}
+        onClick={() => !locked && onChange({ eligible: !item.eligible })}
+        disabled={locked}
+        title={locked ? undefined : item.eligible ? "Eligible — click to exclude" : "Excluded — click to include"}
         className={`mt-1 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${
           item.eligible
             ? "border-green-500 bg-green-500 text-white"
             : "border-gray-300 bg-white"
-        }`}
+        } ${locked ? "cursor-default" : ""}`}
       >
         {item.eligible && <Check className="h-3 w-3" strokeWidth={3} />}
       </button>
@@ -566,9 +605,10 @@ function ItemRow({
           value={item.description}
           onChange={(e) => onChange({ description: e.target.value })}
           placeholder="Item description"
-          className={`w-full border-0 border-b border-transparent bg-transparent px-0 py-0 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-300 focus:outline-none focus:ring-0 ${
+          readOnly={locked}
+          className={`w-full border-0 border-b border-transparent bg-transparent px-0 py-0 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 ${
             !item.eligible ? "line-through opacity-50" : ""
-          }`}
+          } ${locked ? "" : "focus:border-indigo-300"}`}
         />
         <div className="mt-0.5 flex items-center gap-1">
           <span className="text-xs text-gray-400">$</span>
@@ -581,20 +621,23 @@ function ItemRow({
             step="0.01"
             min="0"
             placeholder="0.00"
-            className={`w-20 border-0 border-b border-transparent bg-transparent px-0 py-0 text-xs text-gray-700 focus:border-indigo-300 focus:outline-none focus:ring-0 ${
+            readOnly={locked}
+            className={`w-20 border-0 border-b border-transparent bg-transparent px-0 py-0 text-xs text-gray-700 focus:outline-none focus:ring-0 ${
               !item.eligible ? "opacity-50" : ""
-            }`}
+            } ${locked ? "" : "focus:border-indigo-300"}`}
           />
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onDelete}
-        className="mt-1 flex-shrink-0 rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+      {!locked && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="mt-1 flex-shrink-0 rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }
