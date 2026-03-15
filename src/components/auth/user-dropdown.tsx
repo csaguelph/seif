@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, LogIn, LogOut } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { authClient } from "~/server/better-auth/client";
@@ -69,11 +70,14 @@ export function UserDropdown({ session }: UserDropdownProps) {
         aria-haspopup="true"
       >
         {image ? (
-          <img
+          <Image
             src={image}
             alt=""
+            width={32}
+            height={32}
             className="h-8 w-8 rounded-full"
             referrerPolicy="no-referrer"
+            unoptimized
           />
         ) : (
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-gray-600 text-xs font-medium">
