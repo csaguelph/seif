@@ -26,6 +26,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
+  applications  SeifApplication[]
 }
 
 model Session {
@@ -66,4 +67,39 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+// Organizations that can receive SEIF funding (CSA clubs, etc.)
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  applications SeifApplication[]
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// SEIF application - key fields for listing/filtering; full form data in formData JSON
+model SeifApplication {
+  id              String            @id @default(cuid())
+  status          ApplicationStatus @default(SUBMITTED)
+  amountRequested Decimal           @db.Decimal(10, 2)
+  organizationId  String
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  submittedById   String?
+  submittedBy     User?             @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+  submittedAt     DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  // Full form payload for display and reporting
+  formData        Json
+  // Budget file path (from uploads)
+  budgetFilePath  String?
 }
