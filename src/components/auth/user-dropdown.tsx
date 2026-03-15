@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, LogIn, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { authClient } from "~/server/better-auth/client";
 import type { AuthSession } from "~/lib/auth-types";
@@ -10,6 +11,7 @@ interface UserDropdownProps {
 }
 
 export function UserDropdown({ session }: UserDropdownProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -35,6 +37,7 @@ export function UserDropdown({ session }: UserDropdownProps) {
       fetchOptions: {
         onSuccess: () => {
           setOpen(false);
+          router.refresh();
         },
       },
     });
