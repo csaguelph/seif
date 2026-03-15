@@ -6,11 +6,7 @@ import type { RouterOutputs } from "~/trpc/react";
 import { authClient } from "~/server/better-auth/client";
 import { ChevronDown } from "lucide-react";
 import { BudgetFileUpload } from "~/components/ui/file-upload";
-import {
-  DEFAULT_PHONE_COUNTRY,
-  getFlagEmoji,
-  getPhoneInputState,
-} from "~/lib/phone";
+import { getFlagEmoji, getPhoneInputState } from "~/lib/phone";
 
 type Org = RouterOutputs["application"]["listOrganizations"][number];
 
@@ -337,10 +333,6 @@ function PhoneNumberField({
           aria-label="Phone Number"
         />
       </div>
-      <p className="mt-1 text-sm text-gray-500">
-        Country is detected from the number entered and defaults to{" "}
-        {DEFAULT_PHONE_COUNTRY === "CA" ? "Canada" : DEFAULT_PHONE_COUNTRY}.
-      </p>
     </div>
   );
 }
