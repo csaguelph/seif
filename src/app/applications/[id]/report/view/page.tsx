@@ -76,27 +76,27 @@ export default async function ViewReportPage({
         </dl>
 
         {report.underSpendExplanation && (
-          <div className="mt-6">
+          <dl className="mt-6">
             <dt className="text-xs font-medium uppercase text-gray-500">Explanation (under spend)</dt>
             <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{report.underSpendExplanation}</dd>
-          </div>
+          </dl>
         )}
 
-        <div className="mt-6">
+        <dl className="mt-6">
           <dt className="text-xs font-medium uppercase text-gray-500">Description & activities</dt>
           <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{report.descriptionActivities}</dd>
-        </div>
+        </dl>
 
-        <div className="mt-6">
+        <dl className="mt-6">
           <dt className="text-xs font-medium uppercase text-gray-500">Final budget</dt>
           <dd className="mt-0.5">
             <a href={report.finalBudgetFilePath} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-900">
               View final budget file
             </a>
           </dd>
-        </div>
+        </dl>
 
-        <div className="mt-6">
+        <dl className="mt-6">
           <dt className="text-xs font-medium uppercase text-gray-500">Receipts</dt>
           <dd className="mt-0.5">
             <ul className="list-inside list-disc space-y-0.5">
@@ -109,7 +109,7 @@ export default async function ViewReportPage({
               ))}
             </ul>
           </dd>
-        </div>
+        </dl>
       </div>
     </div>
   );

@@ -243,6 +243,7 @@ export default async function ApplicationDetailPage({
         initialConditions={application.approvalConditions}
         initialDenialReason={application.denialReason}
         amountRequested={Number(application.amountRequested)}
+        initialAmountApproved={application.amountApproved != null ? Number(application.amountApproved) : undefined}
       />
     </div>
   );

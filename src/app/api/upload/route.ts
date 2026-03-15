@@ -36,11 +36,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (type === "report-budget" || type === "report-receipt") {
-      const session = await getSession();
-      if (!session?.user) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    const session = await getSession();
+    if (!session?.user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const formData = await req.formData();

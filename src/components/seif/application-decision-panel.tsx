@@ -18,8 +18,9 @@ type ApplicationDecisionPanelProps = {
   initialComments: string | null;
   initialConditions: string | null;
   initialDenialReason: string | null;
-  /** Pre-fill for amount approved (defaults to amount requested if not set) */
   amountRequested: number;
+  /** When set, pre-fills the amount awarded field (e.g. for already-approved applications). */
+  initialAmountApproved?: number | null;
 };
 
 export function ApplicationDecisionPanel({
@@ -29,6 +30,7 @@ export function ApplicationDecisionPanel({
   initialConditions,
   initialDenialReason,
   amountRequested,
+  initialAmountApproved,
 }: ApplicationDecisionPanelProps) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -37,7 +39,7 @@ export function ApplicationDecisionPanel({
   const [conditions, setConditions] = useState(initialConditions ?? "");
   const [denialReason, setDenialReason] = useState(initialDenialReason ?? "");
   const [amountApproved, setAmountApproved] = useState<string>(
-    String(amountRequested)
+    initialAmountApproved != null ? String(initialAmountApproved) : String(amountRequested)
   );
 
   const refreshApplication = () => {

@@ -98,20 +98,20 @@ export default async function AdminReportDetailPage({
               <dd className="mt-0.5 text-gray-900">${Number(report.amountSpent).toFixed(2)}</dd>
             </div>
             {report.underSpendExplanation && (
-              <div className="sm:col-span-2">
+              <>
                 <dt className="text-xs font-medium uppercase text-gray-500">Explanation (under spend)</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{report.underSpendExplanation}</dd>
-              </div>
+                <dd className="mt-0.5 whitespace-pre-wrap text-gray-900 sm:col-span-2">{report.underSpendExplanation}</dd>
+              </>
             )}
           </dl>
         </div>
 
-        <div className="mt-6">
+        <dl className="mt-6">
           <dt className="text-xs font-medium uppercase text-gray-500">Description & activities</dt>
           <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{report.descriptionActivities}</dd>
-        </div>
+        </dl>
 
-        <div className="mt-6">
+        <dl className="mt-6">
           <dt className="text-xs font-medium uppercase text-gray-500">Final budget</dt>
           <dd className="mt-0.5">
             <a
@@ -123,9 +123,9 @@ export default async function AdminReportDetailPage({
               View final budget file
             </a>
           </dd>
-        </div>
+        </dl>
 
-        <div className="mt-6">
+        <dl className="mt-6">
           <dt className="text-xs font-medium uppercase text-gray-500">Receipts</dt>
           <dd className="mt-0.5">
             <ul className="list-inside list-disc space-y-0.5">
@@ -138,13 +138,13 @@ export default async function AdminReportDetailPage({
               ))}
             </ul>
           </dd>
-        </div>
+        </dl>
 
         {report.reviewerNotes && (
-          <div className="mt-6 rounded bg-gray-50 p-3">
+          <dl className="mt-6 rounded bg-gray-50 p-3">
             <dt className="text-xs font-medium uppercase text-gray-500">Internal notes</dt>
             <dd className="mt-0.5 whitespace-pre-wrap text-sm text-gray-900">{report.reviewerNotes}</dd>
-          </div>
+          </dl>
         )}
 
         {report.reviewedAt && report.reviewedBy && (
