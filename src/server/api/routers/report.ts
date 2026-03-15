@@ -62,6 +62,12 @@ export const reportRouter = createTRPCRouter({
       }
       const amountAllocated =
         app.amountApproved != null ? Number(app.amountApproved) : Number(app.amountRequested);
+      if (input.amountSpent > amountAllocated) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Amount spent cannot exceed the amount allocated.",
+        });
+      }
       try {
         return await ctx.db.seifReport.create({
           data: {
@@ -104,7 +110,7 @@ export const reportRouter = createTRPCRouter({
   getById: adminProcedure
     .input(z.object({ id: z.string().cuid() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.seifReport.findUniqueOrThrow({
+      const report = await ctx.db.seifReport.findUnique({
         where: { id: input.id },
         include: {
           application: {
@@ -113,6 +119,10 @@ export const reportRouter = createTRPCRouter({
           reviewedBy: true,
         },
       });
+      if (!report) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+      }
+      return report;
     }),
 
   /** Update report status and optional reviewer notes (admin). */

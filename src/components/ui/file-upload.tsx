@@ -444,10 +444,19 @@ export function ReportReceiptsUpload({
             resolve(null);
           }
         } else {
+          try {
+            const data = JSON.parse(xhr.responseText) as { error?: string };
+            setError(data.error ?? "Upload failed");
+          } catch {
+            setError("Upload failed");
+          }
           resolve(null);
         }
       });
-      xhr.addEventListener("error", () => resolve(null));
+      xhr.addEventListener("error", () => {
+        setError("Upload failed");
+        resolve(null);
+      });
       xhr.open("POST", "/api/upload?type=report-receipt");
       xhr.send(formData);
     });
