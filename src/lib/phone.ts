@@ -14,7 +14,7 @@ function normalizePhoneValue(value: unknown) {
 
 export function getFlagEmoji(countryCode: string | null | undefined) {
   const normalized = countryCode?.trim().toUpperCase();
-  if (!normalized || normalized.length !== 2) return "🇨🇦";
+  if (normalized?.length !== 2) return "🇨🇦";
 
   return String.fromCodePoint(
     ...[...normalized].map((char) => 127397 + char.charCodeAt(0)),
