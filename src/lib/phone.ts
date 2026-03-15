@@ -40,7 +40,7 @@ export function getPhoneInputState(
     formatted,
     detectedCountry,
     callingCode,
-    e164: isValid ? parsed.number : null,
+    e164: isValid && parsed ? parsed.number : null,
     isValid,
   };
 }
