@@ -138,6 +138,7 @@ model SeifReport {
   descriptionActivities String
   finalBudgetFilePath   String
   receiptsFilePaths     Json            // array of uploaded receipt URLs
+  receiptReviews        Json?           // per-receipt OCR results and admin review decisions
   submittedById         String?
   submittedBy           User?           @relation("ReportSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
   submittedAt           DateTime        @default(now())

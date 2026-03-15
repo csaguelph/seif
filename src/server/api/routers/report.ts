@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, adminProcedure, protectedProcedure } from "~/server/api/trpc";
+import type { ReceiptReview } from "~/types/receipt-review";
 
 const reportStatusSchema = z.enum(["SUBMITTED", "COMPLETE", "PENDING_FUNDS_RETURN", "FUNDS_RETURNED"]);
 
@@ -123,6 +124,100 @@ export const reportRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
       }
       return report;
+    }),
+
+  /** Save admin review data for a single receipt (items + eligible flags). */
+  saveReceiptReview: adminProcedure
+    .input(
+      z.object({
+        reportId: z.string().cuid(),
+        receiptUrl: z.string().url(),
+        items: z.array(
+          z.object({
+            id: z.string(),
+            description: z.string(),
+            amount: z.number().min(0).finite(),
+            tax: z.number().min(0).finite().optional(),
+            eligible: z.boolean(),
+          }),
+        ),
+        detectedSubtotal: z.number().optional(),
+        detectedTax: z.number().optional(),
+        detectedTotal: z.number().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const report = await ctx.db.seifReport.findUnique({
+        where: { id: input.reportId },
+        select: { id: true, receiptReviews: true },
+      });
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+
+      const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
+      const idx = existing.findIndex((r) => r.url === input.receiptUrl);
+      const entry: ReceiptReview = {
+        url: input.receiptUrl,
+        ocrStatus: "complete",
+        items: input.items,
+        detectedSubtotal: input.detectedSubtotal,
+        detectedTax: input.detectedTax,
+        detectedTotal: input.detectedTotal,
+        reviewedAt: new Date().toISOString(),
+      };
+      const updated = [...existing];
+      if (idx >= 0) {
+        updated[idx] = { ...existing[idx]!, ...entry };
+      } else {
+        updated.push(entry);
+      }
+      return ctx.db.seifReport.update({
+        where: { id: input.reportId },
+        data: { receiptReviews: updated as unknown as object },
+      });
+    }),
+
+  /**
+   * Trigger AI OCR analysis for a single receipt (admin).
+   * Marks the receipt as "processing" in the DB.
+   * TODO: integrate OpenRouter + Gemini 2.5 Flash to parse the receipt and populate items.
+   */
+  triggerReceiptOcr: adminProcedure
+    .input(
+      z.object({
+        reportId: z.string().cuid(),
+        receiptUrl: z.string().url(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const report = await ctx.db.seifReport.findUnique({
+        where: { id: input.reportId },
+        select: { id: true, receiptReviews: true },
+      });
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+
+      const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
+      const idx = existing.findIndex((r) => r.url === input.receiptUrl);
+      const updated = [...existing];
+      const entry: ReceiptReview = {
+        url: input.receiptUrl,
+        ocrStatus: "processing",
+        items: idx >= 0 ? (existing[idx]!.items ?? []) : [],
+      };
+      if (idx >= 0) {
+        updated[idx] = { ...existing[idx]!, ...entry };
+      } else {
+        updated.push(entry);
+      }
+      await ctx.db.seifReport.update({
+        where: { id: input.reportId },
+        data: { receiptReviews: updated as unknown as object },
+      });
+
+      // TODO: kick off async AI analysis via OpenRouter (Gemini 2.5 Flash)
+      // The model should return JSON with line items (description, amount, tax), subtotal, tax, total.
+      // On completion, update ocrStatus to "complete" and populate items.
+
+      return { status: "processing" as const };
     }),
 
   /** Update report status and optional reviewer notes (admin). */

@@ -6,8 +6,10 @@ import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
 import { ReportStatusBadge } from "~/components/seif/report-status-badge";
 import { ReportStatusPanel } from "~/components/seif/report-status-panel";
+import { ReceiptReviewer } from "~/components/seif/receipt-reviewer";
 import { formatTorontoDateTime } from "~/lib/date";
 import { getApplicationTitle, getApplicationDate } from "~/lib/application";
+import type { ReceiptReview } from "~/types/receipt-review";
 
 export const metadata = {
   title: "Report Details",
@@ -33,9 +35,10 @@ export default async function AdminReportDetailPage({
   const app = report.application;
   const formData = app.formData as Record<string, unknown>;
   const receipts = report.receiptsFilePaths as string[];
+  const receiptReviews = (report.receiptReviews as ReceiptReview[] | null) ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center gap-3">
         <Link
           href="/admin/reports"
@@ -50,6 +53,8 @@ export default async function AdminReportDetailPage({
           View application →
         </Link>
       </div>
+
+      {/* Report details */}
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow">
         <div className="border-b border-gray-200 pb-4">
           <h1 className="text-xl font-semibold text-gray-900">
@@ -125,21 +130,6 @@ export default async function AdminReportDetailPage({
           </dd>
         </dl>
 
-        <dl className="mt-6">
-          <dt className="text-xs font-medium uppercase text-gray-500">Receipts</dt>
-          <dd className="mt-0.5">
-            <ul className="list-inside list-disc space-y-0.5">
-              {receipts.map((url, i) => (
-                <li key={i}>
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-900">
-                    Receipt {i + 1}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </dd>
-        </dl>
-
         {report.reviewerNotes && (
           <dl className="mt-6 rounded bg-gray-50 p-3">
             <dt className="text-xs font-medium uppercase text-gray-500">Internal notes</dt>
@@ -152,6 +142,15 @@ export default async function AdminReportDetailPage({
             Last reviewed {formatTorontoDateTime(report.reviewedAt)} by {report.reviewedBy.name}
           </p>
         )}
+      </div>
+
+      {/* Receipt review interface */}
+      <div className="mt-8 rounded-lg border border-gray-200 bg-white p-6 shadow">
+        <ReceiptReviewer
+          reportId={report.id}
+          receiptsFilePaths={receipts}
+          initialReviews={receiptReviews}
+        />
       </div>
 
       <ReportStatusPanel
