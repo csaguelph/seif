@@ -1,0 +1,59 @@
+import {
+  AsYouType,
+  getCountryCallingCode,
+  parsePhoneNumberFromString,
+  type CountryCode,
+} from "libphonenumber-js/core";
+import metadata from "libphonenumber-js/metadata.min.json";
+
+export const DEFAULT_PHONE_COUNTRY: CountryCode = "CA";
+
+function normalizePhoneValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function getFlagEmoji(countryCode: string | null | undefined) {
+  const normalized = countryCode?.trim().toUpperCase();
+  if (!normalized || normalized.length !== 2) return "🇨🇦";
+
+  return String.fromCodePoint(
+    ...[...normalized].map((char) => 127397 + char.charCodeAt(0)),
+  );
+}
+
+export function getPhoneInputState(
+  value: unknown,
+  defaultCountry: CountryCode = DEFAULT_PHONE_COUNTRY,
+) {
+  const rawValue = normalizePhoneValue(value);
+  const formatter = new AsYouType(defaultCountry, metadata);
+  const formatted = formatter.input(rawValue);
+  const detectedCountry = formatter.getCountry() ?? defaultCountry;
+  const phoneNumber = formatter.getNumber();
+  const callingCode = phoneNumber?.countryCallingCode
+    ? `+${phoneNumber.countryCallingCode}`
+    : `+${getCountryCallingCode(detectedCountry, metadata)}`;
+
+  return {
+    formatted,
+    detectedCountry,
+    callingCode,
+  };
+}
+
+export function formatStoredPhoneNumber(
+  value: unknown,
+  defaultCountry: CountryCode = DEFAULT_PHONE_COUNTRY,
+) {
+  const rawValue = normalizePhoneValue(value);
+  if (!rawValue) return null;
+
+  const parsed = parsePhoneNumberFromString(rawValue, defaultCountry, metadata);
+  if (!parsed) {
+    return getPhoneInputState(rawValue, defaultCountry).formatted || rawValue;
+  }
+
+  return rawValue.startsWith("+") || parsed.country !== defaultCountry
+    ? parsed.formatInternational()
+    : parsed.formatNational();
+}
