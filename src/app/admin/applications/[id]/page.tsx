@@ -4,6 +4,8 @@ import { getSession } from "~/server/better-auth/server";
 import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 import { headers } from "next/headers";
+import { ApplicationDecisionPanel } from "~/components/seif/application-decision-panel";
+import { formatTorontoDateTime } from "~/lib/date";
 
 export const metadata = {
   title: "Application Details",
@@ -16,7 +18,7 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await getSession();
-  if (!session?.user || session.user.role !== "ADMIN") {
+  if (session?.user?.role !== "ADMIN") {
     redirect("/");
   }
 
@@ -27,6 +29,8 @@ export default async function ApplicationDetailPage({
   if (!application) notFound();
 
   const form = application.formData as Record<string, unknown>;
+  const readString = (value: unknown) =>
+    typeof value === "string" && value.length > 0 ? value : "—";
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -42,7 +46,7 @@ export default async function ApplicationDetailPage({
             Application — {application.organization.name}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Submitted {new Date(application.submittedAt).toLocaleString()} · $
+            Submitted {formatTorontoDateTime(application.submittedAt)} · $
             {Number(application.amountRequested).toFixed(2)} requested ·{" "}
             {application.status}
           </p>
@@ -53,7 +57,7 @@ export default async function ApplicationDetailPage({
               Applicant name
             </dt>
             <dd className="mt-0.5 text-gray-900">
-              {(form.fullName as string) ?? "—"}
+              {readString(form.fullName)}
             </dd>
           </div>
           <div>
@@ -61,7 +65,7 @@ export default async function ApplicationDetailPage({
               Email
             </dt>
             <dd className="mt-0.5 text-gray-900">
-              {(form.email as string) ?? "—"}
+              {readString(form.email)}
             </dd>
           </div>
           <div>
@@ -69,7 +73,7 @@ export default async function ApplicationDetailPage({
               Phone
             </dt>
             <dd className="mt-0.5 text-gray-900">
-              {(form.phone as string) ?? "—"}
+              {readString(form.phone)}
             </dd>
           </div>
           <div>
@@ -77,7 +81,7 @@ export default async function ApplicationDetailPage({
               Event or initiative
             </dt>
             <dd className="mt-0.5 text-gray-900">
-              {(form.typeFunding as string) ?? "—"}
+              {readString(form.typeFunding)}
             </dd>
           </div>
           {form.eventTitle != null && form.eventTitle !== "" && (
@@ -87,7 +91,7 @@ export default async function ApplicationDetailPage({
                   Event title
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {String(form.eventTitle)}
+                  {readString(form.eventTitle)}
                 </dd>
               </div>
               <div>
@@ -95,7 +99,7 @@ export default async function ApplicationDetailPage({
                   Event date
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {String(form.eventDate ?? "—")}
+                  {readString(form.eventDate)}
                 </dd>
               </div>
             </>
@@ -107,7 +111,7 @@ export default async function ApplicationDetailPage({
                   Initiative title
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {String(form.initiativeTitle)}
+                  {readString(form.initiativeTitle)}
                 </dd>
               </div>
               <div>
@@ -115,7 +119,7 @@ export default async function ApplicationDetailPage({
                   Initiative date
                 </dt>
                 <dd className="mt-0.5 text-gray-900">
-                  {String(form.initiativeDate ?? "—")}
+                  {readString(form.initiativeDate)}
                 </dd>
               </div>
             </>
@@ -136,6 +140,68 @@ export default async function ApplicationDetailPage({
             </a>
           </div>
         )}
+        {(application.reviewedAt ??
+          application.reviewerComments ??
+          application.approvalConditions ??
+          application.denialReason) && (
+          <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-800">
+              Review outcome
+            </h2>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+              {application.reviewedAt && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Reviewed at
+                  </dt>
+                  <dd className="mt-0.5 text-gray-900">
+                    {formatTorontoDateTime(application.reviewedAt)}
+                  </dd>
+                </div>
+              )}
+              {application.reviewedBy && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Reviewed by
+                  </dt>
+                  <dd className="mt-0.5 text-gray-900">
+                    {application.reviewedBy.name} ({application.reviewedBy.email})
+                  </dd>
+                </div>
+              )}
+              {application.reviewerComments && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Acceptance comments
+                  </dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">
+                    {application.reviewerComments}
+                  </dd>
+                </div>
+              )}
+              {application.approvalConditions && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Acceptance conditions
+                  </dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">
+                    {application.approvalConditions}
+                  </dd>
+                </div>
+              )}
+              {application.denialReason && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-gray-500">
+                    Denial reason
+                  </dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-gray-900">
+                    {application.denialReason}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
         <details className="mt-8">
           <summary className="cursor-pointer text-sm font-medium text-gray-700">
             Full form data (JSON)
@@ -145,6 +211,13 @@ export default async function ApplicationDetailPage({
           </pre>
         </details>
       </div>
+      <ApplicationDecisionPanel
+        applicationId={application.id}
+        status={application.status}
+        initialComments={application.reviewerComments}
+        initialConditions={application.approvalConditions}
+        initialDenialReason={application.denialReason}
+      />
     </div>
   );
 }

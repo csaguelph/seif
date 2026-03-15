@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { formatTorontoDate } from "~/lib/date";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/react";
+
+const statusClasses: Record<string, string> = {
+  APPROVED: "bg-emerald-100 text-emerald-800",
+  REJECTED: "bg-rose-100 text-rose-800",
+  UNDER_REVIEW: "bg-amber-100 text-amber-800",
+  SUBMITTED: "bg-blue-100 text-blue-800",
+  DRAFT: "bg-gray-100 text-gray-800",
+};
 
 export function ApplicationsTable() {
   const { data: applications, isLoading, error } = api.application.list.useQuery();
@@ -54,7 +63,7 @@ export function ApplicationsTable() {
           {applications.map((app: RouterOutputs["application"]["list"][number]) => (
             <tr key={app.id} className="hover:bg-gray-50">
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900">
-                {new Date(app.submittedAt).toLocaleDateString()}
+                {formatTorontoDate(app.submittedAt)}
               </td>
               <td className="px-4 py-3 text-sm text-gray-900">
                 {app.organization.name}
@@ -66,7 +75,11 @@ export function ApplicationsTable() {
                 ${Number(app.amountRequested).toFixed(2)}
               </td>
               <td className="px-4 py-3">
-                <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800">
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    statusClasses[app.status] ?? "bg-gray-100 text-gray-800"
+                  }`}
+                >
                   {app.status}
                 </span>
               </td>
