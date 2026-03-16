@@ -153,11 +153,11 @@ function ReceiptReviewerInner({
   );
 
   const addReceipt = () => {
-    updateCurrentReview((prev) => ({
-      ...prev,
-      receipts: [...prev.receipts, newReceipt()],
-    }));
-    setActiveReceiptIdx(currentReview.receipts.length);
+    updateCurrentReview((prev) => {
+      const newReceipts = [...prev.receipts, newReceipt()];
+      setActiveReceiptIdx(newReceipts.length - 1);
+      return { ...prev, receipts: newReceipts };
+    });
   };
 
   const deleteReceipt = (idx: number) => {

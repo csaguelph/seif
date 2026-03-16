@@ -44,9 +44,27 @@ async function buildImageContent(
       clearTimeout(timeoutId);
     }
     if (!res.ok) throw new Error(`Failed to fetch receipt PDF (HTTP ${res.status})`);
-    const contentLength = Number(res.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_PDF_BYTES) throw new Error("Receipt PDF exceeds the 20 MB limit.");
-    const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    // Reject early if Content-Length is present and already too large
+    const declaredLength = res.headers.get("content-length");
+    if (declaredLength !== null && Number(declaredLength) > MAX_PDF_BYTES) {
+      throw new Error("Receipt PDF exceeds the 20 MB limit.");
+    }
+    // Stream the body and enforce the cap regardless of headers
+    if (!res.body) throw new Error("Failed to fetch receipt PDF (empty body).");
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let bytesRead = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > MAX_PDF_BYTES) {
+        await reader.cancel();
+        throw new Error("Receipt PDF exceeds the 20 MB limit.");
+      }
+      chunks.push(value);
+    }
+    const base64 = Buffer.concat(chunks).toString("base64");
     return { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}` } };
   }
 
