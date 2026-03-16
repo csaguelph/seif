@@ -46,7 +46,7 @@ export function ReportPipelinePanel({
     return initialReviews;
   }, [latestReport?.receiptReviews, initialReviews]);
 
-  const reviewedFileCount = currentReviews.filter((r) => r.ocrStatus === "complete").length;
+  const reviewedFileCount = currentReviews.filter((r) => r.reviewedAt != null).length;
   const totalEligible = calcAllReceiptsEligibleTotal(currentReviews as unknown[]);
   const amountToReturn = Math.max(0, amountAllocated - totalEligible);
   const noFundsToReturn = amountToReturn < 0.005;

@@ -342,9 +342,12 @@ export const reportRouter = createTRPCRouter({
       }
 
       const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
+      const previousEntry = existing.find((r) => r.url === input.receiptUrl);
       const entry: ReceiptReview = {
         url: input.receiptUrl,
-        ocrStatus: "complete",
+        // Preserve the OCR status so the badge reflects the actual AI result;
+        // fall back to "complete" only when saving a brand-new manual review.
+        ocrStatus: previousEntry?.ocrStatus ?? "complete",
         receipts: input.receipts,
         reviewedAt: new Date().toISOString(),
       };
@@ -413,7 +416,7 @@ export const reportRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const report = await ctx.db.seifReport.findUnique({
         where: { id: input.id },
-        select: { id: true, status: true, amountAllocated: true, receiptReviews: true },
+        select: { id: true, status: true, amountAllocated: true, receiptReviews: true, receiptsFilePaths: true },
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
       if (report.status !== "SUBMITTED") {
@@ -421,6 +424,15 @@ export const reportRouter = createTRPCRouter({
       }
 
       const reviews = (report.receiptReviews as unknown[] | null) ?? [];
+      const reportPaths = (report.receiptsFilePaths as string[]) ?? [];
+      const reviewedUrls = new Set((reviews as ReceiptReview[]).map((r) => r.url));
+      const unreviewedCount = reportPaths.filter((p) => !reviewedUrls.has(p)).length;
+      if (unreviewedCount > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `${unreviewedCount} receipt file${unreviewedCount > 1 ? "s" : ""} have not been reviewed yet. Please save all receipts before finalising.`,
+        });
+      }
       const totalEligible = calcAllReceiptsEligibleTotal(reviews);
       const amountAllocated = Number(report.amountAllocated);
       // Use a small epsilon to absorb floating-point rounding
