@@ -101,6 +101,21 @@ Rules:
 - "total" is the grand total charged; omit if not shown
 - All monetary values must be plain numbers (e.g. 12.50, not "$12.50")`;
 
+/**
+ * Parse a monetary value returned by the AI model.
+ * Strips common formatting ($, commas, spaces) before converting.
+ * Returns 0 for anything that still doesn't parse as a finite number.
+ */
+function parseAmount(raw: unknown): number {
+  if (typeof raw === "number") return isFinite(raw) ? raw : 0;
+  if (typeof raw === "string") {
+    const cleaned = raw.replace(/[$,\s]/g, "");
+    const n = Number(cleaned);
+    return isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
 /** Call OpenRouter with Gemini 2.5 Flash to OCR a receipt image. */
 async function runReceiptOcr(receiptUrl: string): Promise<Pick<ReceiptReview, "receipts">> {
   const imageContent = await buildImageContent(receiptUrl);
@@ -153,13 +168,13 @@ async function runReceiptOcr(receiptUrl: string): Promise<Pick<ReceiptReview, "r
       (item): ReceiptLineItem => ({
         id: randomUUID(),
         description: item.description ?? "",
-        amount: Number(item.amount ?? 0),
+        amount: parseAmount(item.amount),
         eligible: true,
       }),
     ),
-    ...(r.subtotal != null ? { subtotal: Number(r.subtotal) } : {}),
-    ...(r.tax != null ? { tax: Number(r.tax) } : {}),
-    ...(r.total != null ? { total: Number(r.total) } : {}),
+    ...(r.subtotal != null ? { subtotal: parseAmount(r.subtotal) } : {}),
+    ...(r.tax != null ? { tax: parseAmount(r.tax) } : {}),
+    ...(r.total != null ? { total: parseAmount(r.total) } : {}),
   }));
 
   return { receipts };
