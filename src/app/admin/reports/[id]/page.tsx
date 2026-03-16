@@ -154,15 +154,17 @@ export default async function AdminReportDetailPage({
         />
       </div>
 
-      <ReportPipelinePanel
-        reportId={report.id}
-        initialStatus={report.status}
-        amountAllocated={Number(report.amountAllocated)}
-        totalReceiptFiles={receipts.length}
-        initialReviews={receiptReviews}
-        initialReviewedAt={report.reviewedAt}
-        initialReviewedByName={report.reviewedBy?.name ?? null}
-      />
+      <div className="mt-8">
+        <ReportPipelinePanel
+          reportId={report.id}
+          initialStatus={report.status}
+          amountAllocated={Number(report.amountAllocated)}
+          totalReceiptFiles={receipts.length}
+          initialReviews={receiptReviews}
+          initialReviewedAt={report.reviewedAt}
+          initialReviewedByName={report.reviewedBy?.name ?? null}
+        />
+      </div>
     </div>
   );
 }

@@ -57,6 +57,7 @@ export function ReportPipelinePanel({
   };
 
   const finalizeReview = api.report.finalizeReview.useMutation({ onSuccess: refresh });
+  const undoFinalize = api.report.undoFinalizeReview.useMutation({ onSuccess: refresh });
   const confirmReturned = api.report.confirmFundsReturned.useMutation({
     onSuccess: () => { setConfirmOpen(false); refresh(); },
   });
@@ -70,7 +71,7 @@ export function ReportPipelinePanel({
     return (
       <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-5">
         <Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" />
-        <div>
+        <div className="flex-1">
           <p className="font-semibold text-green-800">Report complete</p>
           <p className="mt-0.5 text-sm text-green-700">
             All eligible expenses accounted for — no funds to return.
@@ -80,7 +81,18 @@ export function ReportPipelinePanel({
               Finalised {formatTorontoDateTime(reviewedAt)} by {reviewedByName}
             </p>
           )}
+          {undoFinalize.error && (
+            <p className="mt-2 text-sm text-red-600">{undoFinalize.error.message}</p>
+          )}
         </div>
+        <button
+          onClick={() => undoFinalize.mutate({ id: reportId })}
+          disabled={undoFinalize.isPending}
+          className="flex items-center gap-1.5 rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm text-green-700 hover:bg-green-50 disabled:opacity-60"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {undoFinalize.isPending ? "Undoing…" : "Undo"}
+        </button>
       </div>
     );
   }
@@ -145,10 +157,20 @@ export function ReportPipelinePanel({
           </dl>
         </div>
 
-        <div className="mt-4 flex items-center justify-between">
-          {confirmReturned.error && (
-            <p className="text-sm text-red-600">{confirmReturned.error.message}</p>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          {(confirmReturned.error ?? undoFinalize.error) && (
+            <p className="text-sm text-red-600">
+              {(confirmReturned.error ?? undoFinalize.error)!.message}
+            </p>
           )}
+          <button
+            onClick={() => undoFinalize.mutate({ id: reportId })}
+            disabled={undoFinalize.isPending}
+            className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {undoFinalize.isPending ? "Undoing…" : "Undo"}
+          </button>
           <button
             onClick={() => setConfirmOpen(true)}
             className="ml-auto flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"

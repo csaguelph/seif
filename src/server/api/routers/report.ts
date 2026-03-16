@@ -400,6 +400,31 @@ export const reportRouter = createTRPCRouter({
     }),
 
   /**
+   * Undo a finalized review.
+   * Moves status from COMPLETE or PENDING_FUNDS_RETURN → SUBMITTED, clearing reviewer fields.
+   */
+  undoFinalizeReview: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await ctx.db.seifReport.findUnique({
+        where: { id: input.id },
+        select: { id: true, status: true },
+      });
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+      if (report.status !== "COMPLETE" && report.status !== "PENDING_FUNDS_RETURN") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Report has not been finalised.",
+        });
+      }
+
+      return ctx.db.seifReport.update({
+        where: { id: input.id },
+        data: { status: "SUBMITTED", reviewedAt: null, reviewedById: null },
+      });
+    }),
+
+  /**
    * Undo a funds-returned confirmation.
    * Moves status from FUNDS_RETURNED → PENDING_FUNDS_RETURN.
    */
