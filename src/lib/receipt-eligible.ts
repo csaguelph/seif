@@ -30,6 +30,9 @@ export function calcAllReceiptsEligibleTotal(rawReviews: unknown[]): number {
 
 /** Migrate old single-receipt format (items at top level) to the current receipts-array format. */
 export function migrateReview(raw: unknown): ReceiptReview {
+  if (raw == null || typeof raw !== "object") {
+    return { url: "", ocrStatus: "error", receipts: [] };
+  }
   const r = raw as Record<string, unknown>;
   if (Array.isArray(r.receipts)) return raw as ReceiptReview;
   return {

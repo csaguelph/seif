@@ -179,6 +179,12 @@ function ReceiptReviewerInner({
   });
 
   const triggerOcr = api.report.triggerReceiptOcr.useMutation({
+    onMutate: ({ receiptUrl }) => {
+      setReviews((prev) => ({
+        ...prev,
+        [receiptUrl]: { ...prev[receiptUrl]!, ocrStatus: "processing" },
+      }));
+    },
     onSuccess: (data) => {
       setReviews((prev) => ({ ...prev, [data.url]: data }));
       setSavedUrls((prev) => new Set([...prev, data.url]));
@@ -234,6 +240,7 @@ function ReceiptReviewerInner({
                   src={currentUrl}
                   title={`Receipt ${currentIndex + 1}`}
                   className="h-[620px] w-full"
+                  sandbox="allow-scripts allow-same-origin"
                 />
               )}
               {fileType === "other" && (
