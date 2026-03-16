@@ -187,7 +187,9 @@ function ReceiptReviewerInner({
     },
     onSuccess: (data) => {
       setReviews((prev) => ({ ...prev, [data.url]: data }));
-      setSavedUrls((prev) => new Set([...prev, data.url]));
+      if (data.ocrStatus !== "error") {
+        setSavedUrls((prev) => new Set([...prev, data.url]));
+      }
       setActiveReceiptIdx(0);
     },
   });
@@ -757,7 +759,7 @@ function MagnifiableImage({ src, alt }: { src: string; alt: string }) {
             height: LENS,
             left: lens.x - LENS / 2,
             top: lens.y - LENS / 2,
-            backgroundImage: `url(${encodeURI(src)})`,
+            backgroundImage: `url("${src.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}")`,
             backgroundRepeat: "no-repeat",
             ...lensStyle,
           }}

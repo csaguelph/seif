@@ -557,6 +557,12 @@ export const reportRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.status === "COMPLETE" || input.status === "PENDING_FUNDS_RETURN") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Use finalizeReview to transition to COMPLETE or PENDING_FUNDS_RETURN.",
+        });
+      }
       const data = {
         status: input.status,
         reviewerNotes: input.reviewerNotes !== undefined ? (input.reviewerNotes?.trim() || null) : undefined,
