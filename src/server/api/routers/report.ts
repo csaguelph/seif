@@ -122,6 +122,7 @@ async function runReceiptOcr(receiptUrl: string): Promise<Pick<ReceiptReview, "r
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(60_000),
     headers: {
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
