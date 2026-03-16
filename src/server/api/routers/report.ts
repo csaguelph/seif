@@ -341,19 +341,32 @@ export const reportRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Receipt URL not found in this report." });
       }
 
-      const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
-      const previousEntry = existing.find((r) => r.url === input.receiptUrl);
-      const entry: ReceiptReview = {
-        url: input.receiptUrl,
-        // Preserve the OCR status so the badge reflects the actual AI result;
-        // fall back to "complete" only when saving a brand-new manual review.
-        ocrStatus: previousEntry?.ocrStatus ?? "complete",
-        receipts: input.receipts,
-        reviewedAt: new Date().toISOString(),
-      };
-      return ctx.db.seifReport.update({
-        where: { id: input.reportId },
-        data: { receiptReviews: upsertReview(existing, entry) as unknown as object },
+      return ctx.db.$transaction(async (tx) => {
+        const locked = await tx.seifReport.findUnique({
+          where: { id: input.reportId },
+          select: { id: true, receiptReviews: true, receiptsFilePaths: true },
+        });
+        if (!locked) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+
+        const lockedPaths = (locked.receiptsFilePaths as string[]) ?? [];
+        if (!lockedPaths.includes(input.receiptUrl)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Receipt URL not found in this report." });
+        }
+
+        const existing = (locked.receiptReviews as ReceiptReview[] | null) ?? [];
+        const previousEntry = existing.find((r) => r.url === input.receiptUrl);
+        const entry: ReceiptReview = {
+          url: input.receiptUrl,
+          // Preserve the OCR status so the badge reflects the actual AI result;
+          // fall back to "complete" only when saving a brand-new manual review.
+          ocrStatus: previousEntry?.ocrStatus ?? "complete",
+          receipts: input.receipts,
+          reviewedAt: new Date().toISOString(),
+        };
+        return tx.seifReport.update({
+          where: { id: input.reportId },
+          data: { receiptReviews: upsertReview(existing, entry) as unknown as object },
+        });
       });
     }),
 
@@ -380,8 +393,7 @@ export const reportRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Receipt URL not found in this report." });
       }
 
-      const existing = (report.receiptReviews as ReceiptReview[] | null) ?? [];
-
+      // Run OCR outside any transaction — network I/O must not hold a DB connection open
       let entry: ReceiptReview;
       try {
         const ocr = await runReceiptOcr(input.receiptUrl);
@@ -393,14 +405,27 @@ export const reportRouter = createTRPCRouter({
           url: input.receiptUrl,
           ocrStatus: "error",
           ocrError: message,
-          // Preserve any receipts the admin had already added manually
-          receipts: existing.find((r) => r.url === input.receiptUrl)?.receipts ?? [],
+          receipts: [],
         };
       }
 
-      await ctx.db.seifReport.update({
-        where: { id: input.reportId },
-        data: { receiptReviews: upsertReview(existing, entry) as unknown as object },
+      // Transactional read-modify-write to avoid clobbering concurrent saves
+      await ctx.db.$transaction(async (tx) => {
+        const locked = await tx.seifReport.findUnique({
+          where: { id: input.reportId },
+          select: { id: true, receiptReviews: true },
+        });
+        if (!locked) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+
+        const existing = (locked.receiptReviews as ReceiptReview[] | null) ?? [];
+        // Preserve any receipts the admin added manually before OCR ran
+        if (entry.ocrStatus === "error") {
+          entry = { ...entry, receipts: existing.find((r) => r.url === input.receiptUrl)?.receipts ?? [] };
+        }
+        await tx.seifReport.update({
+          where: { id: input.reportId },
+          data: { receiptReviews: upsertReview(existing, entry) as unknown as object },
+        });
       });
 
       return entry;
@@ -425,8 +450,10 @@ export const reportRouter = createTRPCRouter({
 
       const reviews = (report.receiptReviews as unknown[] | null) ?? [];
       const reportPaths = (report.receiptsFilePaths as string[]) ?? [];
-      const reviewedUrls = new Set((reviews as ReceiptReview[]).map((r) => r.url));
-      const unreviewedCount = reportPaths.filter((p) => !reviewedUrls.has(p)).length;
+      const unreviewedCount = reportPaths.filter((p) => {
+        const review = (reviews as ReceiptReview[]).find((r) => r.url === p);
+        return !review?.reviewedAt;
+      }).length;
       if (unreviewedCount > 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",

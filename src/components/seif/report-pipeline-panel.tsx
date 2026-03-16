@@ -220,7 +220,7 @@ export function ReportPipelinePanel({
   // Finalize panel — still SUBMITTED
   // -------------------------------------------------------------------------
 
-  const unreviewedCount = totalReceiptFiles - reviewedFileCount;
+  const unreviewedCount = Math.max(0, totalReceiptFiles - reviewedFileCount);
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-6 shadow">
