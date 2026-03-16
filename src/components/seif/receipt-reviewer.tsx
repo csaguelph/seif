@@ -171,8 +171,8 @@ function ReceiptReviewerInner({
   // Mutations
   const utils = api.useUtils();
   const saveReview = api.report.saveReceiptReview.useMutation({
-    onSuccess: () => {
-      setSavedUrls((prev) => new Set([...prev, currentUrl]));
+    onSuccess: (_data, variables) => {
+      setSavedUrls((prev) => new Set([...prev, variables.receiptUrl]));
       // Invalidate so the pipeline panel recalculates eligible totals
       void utils.report.getById.invalidate({ id: reportId });
     },
